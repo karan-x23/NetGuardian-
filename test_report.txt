@@ -1,0 +1,42 @@
+============================================================
+             NETGUARDIAN TRAFFIC REPORT
+============================================================
+
+Generated: 2026-09-19 22:06:37
+
+===== OVERVIEW =====
+Total Packets : 218
+TCP Packets   : 184
+UDP Packets   : 34
+Other Packets : 0
+
+===== TOP DESTINATION PORTS =====
+Port 443 : 71 packets
+Port 8081 : 46 packets
+Port 52252 : 15 packets
+Port 53524 : 12 packets
+Port 49716 : 11 packets
+Port 62996 : 10 packets
+Port 49668 : 7 packets
+Port 53 : 4 packets
+Port 59113 : 3 packets
+Port 62365 : 3 packets
+
+===== TOP SOURCE IPs =====
+10.166.133.86 : 124 packets
+49.44.79.236 : 22 packets
+8.8.4.4 : 15 packets
+172.64.155.209 : 13 packets
+20.184.175.7 : 11 packets
+104.18.32.47 : 11 packets
+4.150.223.110 : 7 packets
+10.166.133.45 : 4 packets
+4.150.223.99 : 3 packets
+141.94.23.83 : 3 packets
+
+===== SECURITY ALERTS =====
+[ALERT] Port 443 has 71 packets
+
+============================================================
+             END OF REPORT
+============================================================

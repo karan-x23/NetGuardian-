@@ -1,0 +1,34 @@
+NETGUARDIAN REPORT
+Generated: 2026-09-20 18:43:03.767644
+
+Total packets: 4252
+Observed IPs: 69
+
+PROTOCOLS
+TCP: 2412
+UDP: 1840
+
+TOP PORTS
+443: 1860
+64421: 391
+62907: 328
+49669: 201
+60508: 160
+64423: 114
+52384: 92
+59386: 70
+59493: 57
+56293: 37
+56000: 35
+52804: 30
+52809: 29
+53: 24
+62912: 24
+
+ALERTS
+('18:42:41', 64421, 100, 'Port 64421 reached 100 packets')
+('18:42:37', 60508, 100, 'Port 60508 reached 100 packets')
+('18:42:35', 64423, 100, 'Port 64423 reached 100 packets')
+('18:42:35', 49669, 100, 'Port 49669 reached 100 packets')
+('18:42:27', 62907, 100, 'Port 62907 reached 100 packets')
+('18:40:46', 443, 100, 'Port 443 reached 100 packets')
