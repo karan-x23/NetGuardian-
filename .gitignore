@@ -175,3 +175,5 @@ traffic_log.csv
 # Test cache
 .pytest_cache/
 __snapshots__/
+
+traffic_log.csv
