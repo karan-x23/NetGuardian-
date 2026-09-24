@@ -1,106 +1,96 @@
 # NetGuardian
 
-A Python-based network monitoring and traffic analysis dashboard for local network visibility, packet capture, protocol breakdown, port monitoring, and alerting.
+NetGuardian is a Python-based network monitoring dashboard designed for local traffic visibility, packet analysis, port activity monitoring, and alert generation. It provides a desktop interface for observing network behavior in real time and reviewing captured packet data from the local machine.
 
-## Overview
-
-NetGuardian is designed to monitor live network traffic from the local machine and display important information such as:
-
-- packet activity
-- protocol distribution
-- top source and destination IPs
-- connected devices
-- port-level alerting
-- live traffic trends
-
-This project is intended for educational and defensive network monitoring use on networks where you have explicit permission to inspect traffic.
+This project is intended for authorized, defensive network monitoring use on networks where you have explicit permission to inspect traffic.
 
 ## Features
 
 - Real-time packet capture using Scapy
-- Protocol analysis for TCP, UDP, ICMP, DNS, and ARP
-- Traffic rate and byte monitoring
-- Top IP address analysis
-- Device visibility based on local network traffic
-- Port traffic threshold alerts
-- Desktop dashboard built with Tkinter
-- CSV log export and report generation
+- Traffic monitoring for TCP, UDP, ICMP, DNS, and ARP
+- Protocol distribution analysis
+- Top IP and traffic usage insights
+- Connected device visibility
+- Port-based threshold alerting
+- Live usage charts and dashboard panels
+- CSV log generation and report export
+- Desktop UI built with Tkinter
 
-## Project Structure
+## Project structure
 
-- `app.py` - application entry point
-- `gui_dashboard.py` - desktop monitoring dashboard
-- `traffic_logger.py` - packet logging helper
-- `traffic_analyzer.py` - traffic analysis logic
-- `alert_system.py` - alert processing
-- `report_generator.py` - report generation
-- `core/` - packet capture and analysis modules
-- `tests/` - automated tests
-- `requirements.txt` - project dependencies
+- `app.py` – main app entry point
+- `gui_dashboard.py` – Tkinter dashboard and monitoring interface
+- `traffic_logger.py` – packet logging utilities
+- `traffic_analyzer.py` – traffic analysis and summaries
+- `alert_system.py` – alert handling logic
+- `report_generator.py` – report generation
+- `core/` – packet capture and analysis modules
+- `tests/` – automated validation tests
+- `requirements.txt` – Python dependencies
+- `LICENSE` – project license
 
 ## Requirements
 
 - Python 3.10+
-- Windows admin privileges may be required for packet capture
-- Npcap on Windows
+- Windows: run with Administrator privileges if packet capture is required
+- Windows: Npcap installation recommended
 - Scapy
 
 ## Installation
 
-1. Clone the repository:
+1. Clone the repository
 
    ```bash
    git clone https://github.com/your-username/NetGuardian.git
    cd NetGuardian
    ```
 
-2. Create and activate a virtual environment:
+2. Create a virtual environment
 
    ```bash
    python -m venv .venv
    .venv\Scripts\activate
    ```
 
-3. Install dependencies:
+3. Install dependencies
 
    ```bash
    pip install -r requirements.txt
    ```
 
-## Run the app
+## Running the project
+
+Start the dashboard:
 
 ```bash
 python gui_dashboard.py
 ```
 
-If packet capture fails, make sure you are running with administrator privileges and that Npcap is installed on Windows.
+If packet capture does not work, check the following:
 
-## Usage Notes
+- you are running the app with administrator privileges
+- Npcap is installed on Windows
+- your network adapter supports traffic capture in your environment
 
-- Run only on trusted local networks.
-- Do not use on networks where you do not have permission to monitor traffic.
-- Alert thresholds can be adjusted in the Settings panel inside the dashboard.
+## Usage notes
+
+- Use only on trusted or authorized local networks
+- Do not deploy in environments where monitoring permission is not explicit
+- Threshold values and monitoring settings can be adjusted from the dashboard
 
 ## Testing
+
+Run the project tests:
 
 ```bash
 python -m pytest -q
 ```
 
-## Security Notice
+The repository also includes a focused unittest suite for threshold behavior and dashboard logic.
 
-This project is intended for defensive, authorized network monitoring only. It should never be used for unauthorized surveillance or privacy invasion.
+## Security and legal notice
 
-## Roadmap
-
-Planned future improvements include:
-
-- improved interface selection
-- cleaner alert configuration
-- persistent log storage and review
-- better device identification
-- stronger error handling and recovery
-- more advanced anomaly detection
+NetGuardian is intended for defensive, authorized traffic monitoring. It should not be used for unauthorized surveillance, privacy invasion, or any activity that violates laws or network policies.
 
 ## License
 
@@ -110,50 +100,12 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Project Status
+## Status
 
-This is a working prototype for a network monitoring dashboard and analysis tool. It is suitable for learning, experimentation, and defensive monitoring in authorized environments.
+NetGuardian is currently a working prototype focused on live monitoring, packet inspection, port alerting, and local network visibility. It is suitable for learning, experimentation, and defensive monitoring in approved environments.
 
 ## Limitations
 
-- Packet capture depends on local system permissions and network adapter access.
-- Monitoring behavior can vary by OS, hardware, and interface availability.
-- This is not a full enterprise intrusion detection platform.
-
-4. Traffic Analyzer
-5. Alert System
-6. Dashboard
-7. Exit
-
----
-
-## 11. Testing Status
-
-All major modules have been tested successfully in the local development environment.
-
-| Module | Status |
-|---|---|
-| Packet Capture | Tested |
-| Port Monitoring | Tested |
-| Live Monitoring | Tested |
-| Traffic Logger | Tested |
-| Traffic Analyzer | Tested |
-| Alert System | Tested |
-| Dashboard | Tested |
-| Main Menu | Tested |
-
----
-
-## 12. Current Project Status
-
-NetGuardian has reached a functional prototype stage. The core network monitoring, traffic logging, analysis, alerting and dashboard components are implemented and have been tested.
-
-The project can be further improved with features such as graphical visualization, advanced anomaly detection, configurable alert thresholds, report generation and improved user interface.
-
----
-
-## 13. Conclusion
-
-NetGuardian is a defensive network monitoring project designed to provide visibility into network traffic through packet capture, protocol analysis, port monitoring, traffic logging and security alerts.
-
-The project demonstrates practical use of Python, Scapy, network monitoring concepts, CSV-based logging and modular software development.
+- Packet capture depends on OS permissions and adapter support
+- Behavior can vary by system, OS, and network conditions
+- This is not a full enterprise-grade IDS/IPS platform
