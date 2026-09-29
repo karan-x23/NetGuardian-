@@ -1,17 +1,4 @@
-"""NetGuardian - Network Monitor & Analyzer  (SecureOps UI + real scapy backend)
 
-Run (needs admin / root for packet capture; on Windows also install Npcap):
-    pip install scapy
-    python netguardian_secureops.py
-
-Layout / look  : taken from gui_tkinter.py (SecureOps)
-Real data      : taken from gui_dashboard.py (NetGuardian) - AsyncSniffer, CSV log,
-                 port-threshold alerts, text report.
-
-The code is split in two parts:
-    TrafficMonitor  -> no tkinter at all: sniffing, counters, alerts, CSV log
-    App             -> tkinter UI, only reads from TrafficMonitor
-"""
 import csv
 import ipaddress
 import math
