@@ -117,7 +117,7 @@ NetGuardian is currently a working prototype focused on live monitoring, packet 
 1. Run `python gui_dashboard.py`.
 2. In **Devices**, select the adapter and subnet and approve **Scan subnet** to populate the live device inventory.
 3. Press **Start** in the desktop app and open **Live web dashboard** from the header. The browser follows the capture about once per second and displays the latest 5,000 packet rows, protocol and traffic charts, destination volume alerts, and discovered devices.
-4. Click a dot on **Device radar** or select a device to view its IP, MAC, last seen, traffic in the live window, and DNS requests visible to the capture. Encrypted DNS and traffic the adapter cannot see are unavailable. Radar dots show observed devices in a schematic layout. The Wi-Fi meter shows the selected adapter’s link quality when Windows reports it.
+4. **Device Radar** also appears on the desktop Dashboard. In the browser, click a radar dot or select a device to view its IP, MAC, last seen, traffic in the live window, and DNS requests visible to the capture. Encrypted DNS and traffic the adapter cannot see are unavailable. Radar dots show observed devices in a schematic layout. The Wi-Fi meter shows the selected adapter’s link quality when Windows reports it.
 5. Use **Stop** in the desktop app to pause capture. The browser keeps the latest captured data visible. Closing the desktop app shuts down the local dashboard feed.
 
 ```mermaid

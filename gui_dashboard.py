@@ -811,11 +811,15 @@ class App(tk.Tk):
         p.grid(row=0, column=1, sticky="nsew", padx=5)
         top = tk.Frame(p, bg=PANEL)
         top.pack(fill="x", padx=12, pady=(10, 0))
-        heading(top, "Network Map").pack(side="left")
-        flat_button(top, "Refresh", self.draw_map, padx=10, pady=2).pack(side="right")
+        self.network_view = tk.StringVar(value="Device Radar")
+        picker = ttk.Combobox(top, textvariable=self.network_view, state="readonly",
+                              values=("Device Radar", "Network Map"), width=14)
+        picker.pack(side="left")
+        picker.bind("<<ComboboxSelected>>", lambda _event: self.draw_network_view())
+        flat_button(top, "Refresh", self.draw_network_view, padx=10, pady=2).pack(side="right")
         self.map = tk.Canvas(p, bg=PANEL, height=150, highlightthickness=0)
         self.map.pack(fill="both", expand=True, padx=8, pady=8)
-        self.map.bind("<Configure>", lambda e: self.draw_map())
+        self.map.bind("<Configure>", lambda e: self.draw_network_view())
 
     def page_live(self, f):
         f.columnconfigure(0, weight=1)
@@ -1184,6 +1188,36 @@ class App(tk.Tk):
         c.create_text(cx, cy - 7, text=f"{self.mon.pps[-1]:.0f}", fill=TEXT, font=(FONT, 12, "bold"))
         c.create_text(cx, cy + 9, text="pkts/s", fill=MUTED, font=(FONT, 8))
 
+    def draw_network_view(self):
+        if self.network_view.get() == "Network Map":
+            self.draw_map()
+            return
+        canvas = self.map
+        canvas.delete("all")
+        width, height = canvas.winfo_width(), canvas.winfo_height()
+        radius = min(width / 2 - 12, (height - 30) / 2 - 4)
+        if radius < 16:
+            return
+        cx, cy = width / 2, (height - 24) / 2
+        canvas.create_line(cx - radius, cy, cx + radius, cy, fill=BORDER)
+        canvas.create_line(cx, cy - radius, cx, cy + radius, fill=BORDER)
+        for fraction in (0.33, 0.66, 1):
+            r = radius * fraction
+            canvas.create_oval(cx - r, cy - r, cx + r, cy + r, outline=BORDER)
+        canvas.create_oval(cx - 3, cy - 3, cx + 3, cy + 3, fill=BLUE, outline="")
+        seen = set(self.snap["devices"])
+        seen.update(ip for ip, _ in self.discovery_devices)
+        seen.discard(self.mon.local_ip)
+        for index, ip in enumerate(sorted(seen)[:12]):
+            ring = min(index // 6, 1)
+            angle = (index % 6 / 6 + ring / 12) * 2 * math.pi
+            r = radius * (0.46 if ring == 0 else 0.8)
+            x, y = cx + r * math.cos(angle), cy + r * math.sin(angle)
+            dot = canvas.create_oval(x - 4, y - 4, x + 4, y + 4, fill=GREEN, outline="")
+            canvas.tag_bind(dot, "<Button-1>", lambda _event: self.select("Devices"))
+        status = f"{min(12, len(seen))} of {len(seen)} observed · schematic" if seen else "No devices observed yet · scan in Devices"
+        canvas.create_text(cx, height - 10, text=status, fill=MUTED, font=(FONT, 8))
+
     def draw_map(self):
         c = self.map
         c.delete("all")
@@ -1419,7 +1453,7 @@ class App(tk.Tk):
 
         if self.current == "Dashboard":
             self.draw_pie()
-            self.draw_map()
+            self.draw_network_view()
             fill(self.tree_top, [(i, ip, fmt_bytes(b)) for i, (ip, b) in enumerate(s["ip_bytes"].most_common(5), 1)])
             fill(self.tree_dev, [(r[0], r[1], r[2], r[3], r[4]) for r in dev_rows[:8]], dev_tags[:8])
             fill(self.tree_alert, [(r[0], r[1], r[4]) for r in alert_rows[:8]], ["alert"] * len(alert_rows[:8]))
