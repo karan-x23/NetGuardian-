@@ -472,6 +472,9 @@ class App(tk.Tk):
         self.discovery_events = Queue()
         self.discovery_devices = {}
         self.discovery_failed = False
+        self.discovery_checked = 0
+        self.radar_slots = []
+        self.radar_selected = None
         self.adapter_prompt_open = False
         self.live_dashboard = None
         self.wifi_reading = None
@@ -816,10 +819,17 @@ class App(tk.Tk):
                               values=("Device Radar", "Network Map"), width=14)
         picker.pack(side="left")
         picker.bind("<<ComboboxSelected>>", lambda _event: self.draw_network_view())
-        flat_button(top, "Refresh", self.draw_network_view, padx=10, pady=2).pack(side="right")
-        self.map = tk.Canvas(p, bg=PANEL, height=150, highlightthickness=0)
-        self.map.pack(fill="both", expand=True, padx=8, pady=8)
-        self.map.bind("<Configure>", lambda e: self.draw_network_view())
+        flat_button(top, "Devices", lambda: self.select("Devices"), padx=8, pady=2).pack(side="right")
+        flat_button(top, "Scan", lambda: self.request_discovery(show_devices=False),
+                    padx=8, pady=2).pack(side="right", padx=4)
+        self.radar_caption = tk.Label(p, bg=PANEL, fg=MUTED, font=(FONT, 8), justify="left", anchor="w")
+        self.radar_caption.pack(side="bottom", fill="x", padx=10, pady=(0, 6))
+        self.map = tk.Canvas(p, bg=PANEL, height=120, highlightthickness=1, highlightbackground=PANEL,
+                             highlightcolor=BLUE, takefocus=True)
+        self.map.pack(fill="both", expand=True, padx=8, pady=4)
+        self.map.bind("<Configure>", lambda _event: self.draw_network_view())
+        self.map.bind("<Left>", lambda _event: self.step_radar(-1))
+        self.map.bind("<Right>", lambda _event: self.step_radar(1))
 
     def page_live(self, f):
         f.columnconfigure(0, weight=1)
@@ -900,7 +910,7 @@ class App(tk.Tk):
                     if len(new_labels) == 1 and not self.adapter_prompt_open:
                         self.adapter_box.set(next(iter(new_labels)))
                         self.after_idle(self.request_discovery)
-        if self.current == "Devices" or self.live_dashboard is not None:
+        if self.current in ("Dashboard", "Devices") or self.live_dashboard is not None:
             self.refresh_wifi_signal()
         self.after(3000, self.refresh_adapters)
 
@@ -930,7 +940,7 @@ class App(tk.Tk):
                 return
             self.wifi_reading = None
             if (self.adapters or {}).get(self.adapter_box.get()) != adapter:
-                if self.current == "Devices" or self.live_dashboard is not None:
+                if self.current in ("Dashboard", "Devices") or self.live_dashboard is not None:
                     self.refresh_wifi_signal()
                 return
             self.wifi_sample = (adapter, signal)
@@ -942,8 +952,10 @@ class App(tk.Tk):
         threading.Thread(target=read_signal, daemon=True).start()
         self.after(100, show_signal)
 
-    def request_discovery(self):
+    def request_discovery(self, show_devices=True):
         adapter = (self.adapters or {}).get(self.adapter_box.get())
+        if adapter is None and not show_devices:
+            self.select("Devices")
         if adapter is None or self.discovery_adapter or self.adapter_prompt_open:
             return
         self.adapter_prompt_open = True
@@ -959,9 +971,11 @@ class App(tk.Tk):
             self.adapter_prompt_open = False
         if not allowed or (self.adapters or {}).get(adapter.label) != adapter:
             return
-        self.select("Devices")
+        if show_devices:
+            self.select("Devices")
         self.discovery_cancel.clear()
         self.discovery_devices.clear()
+        self.discovery_checked = 0
         self.discovery_failed = False
         self.discovery_tree.delete(*self.discovery_tree.get_children())
         self.discovery_adapter = adapter
@@ -977,6 +991,7 @@ class App(tk.Tk):
         try:
             while True:
                 kind, data, scanned = self.discovery_events.get_nowait()
+                self.discovery_checked = scanned
                 if kind == "devices":
                     observed = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                     for ip, mac in data:
@@ -1188,35 +1203,107 @@ class App(tk.Tk):
         c.create_text(cx, cy - 7, text=f"{self.mon.pps[-1]:.0f}", fill=TEXT, font=(FONT, 12, "bold"))
         c.create_text(cx, cy + 9, text="pkts/s", fill=MUTED, font=(FONT, 8))
 
+    def step_radar(self, direction):
+        if self.network_view.get() != "Device Radar":
+            return None
+        visible = [ip for ip in self.radar_slots[:12] if ip is not None]
+        if visible:
+            current = visible.index(self.radar_selected) if self.radar_selected in visible else -1
+            next_index = (current + direction) % len(visible) if current >= 0 else 0
+            self.select_radar_device(visible[next_index])
+        return "break"
+
+    def select_radar_device(self, ip):
+        self.radar_selected = ip
+        self.map.focus_set()
+        self.draw_network_view()
+
     def draw_network_view(self):
         if self.network_view.get() == "Network Map":
+            self.radar_caption.configure(text="")
             self.draw_map()
             return
         canvas = self.map
         canvas.delete("all")
         width, height = canvas.winfo_width(), canvas.winfo_height()
-        radius = min(width / 2 - 12, (height - 30) / 2 - 4)
+        radius = min(width / 2 - 12, height / 2 - 7)
         if radius < 16:
             return
-        cx, cy = width / 2, (height - 24) / 2
-        canvas.create_line(cx - radius, cy, cx + radius, cy, fill=BORDER)
-        canvas.create_line(cx, cy - radius, cx, cy + radius, fill=BORDER)
-        for fraction in (0.33, 0.66, 1):
+
+        devices = dict(self.snap["devices"])
+        for (ip, mac), observed in self.discovery_devices.items():
+            timestamp = datetime.fromisoformat(observed.replace("Z", "+00:00")).timestamp()
+            current = devices.get(ip, {})
+            devices[ip] = {"mac": mac or current.get("mac", ""),
+                           "last_seen": max(timestamp, current.get("last_seen", 0))}
+        devices.pop(self.mon.local_ip, None)
+        # Keep existing targets in their slots as new addresses appear.
+        self.radar_slots = [ip if ip in devices else None for ip in self.radar_slots[:12]]
+        slot_ips = set(self.radar_slots)
+        for ip in devices:
+            if ip in slot_ips:
+                continue
+            if None in self.radar_slots:
+                self.radar_slots[self.radar_slots.index(None)] = ip
+            elif len(self.radar_slots) < 12:
+                self.radar_slots.append(ip)
+            else:
+                break
+
+        cx, cy = width / 2, height / 2
+        canvas.create_oval(cx - radius, cy - radius, cx + radius, cy + radius,
+                           fill="#0a2433", outline="#397575")
+        for fraction in (0.33, 0.66):
             r = radius * fraction
-            canvas.create_oval(cx - r, cy - r, cx + r, cy + r, outline=BORDER)
+            canvas.create_oval(cx - r, cy - r, cx + r, cy + r, outline="#274e59")
+        canvas.create_line(cx - radius, cy, cx + radius, cy, fill="#274e59")
+        canvas.create_line(cx, cy - radius, cx, cy + radius, fill="#274e59")
         canvas.create_oval(cx - 3, cy - 3, cx + 3, cy + 3, fill=BLUE, outline="")
-        seen = set(self.snap["devices"])
-        seen.update(ip for ip, _ in self.discovery_devices)
-        seen.discard(self.mon.local_ip)
-        for index, ip in enumerate(sorted(seen)[:12]):
-            ring = min(index // 6, 1)
+        now = time.time()
+        scan = self.discovery_adapter
+        if scan is not None:
+            network = scan.network
+            total = network.num_addresses - (2 if network.prefixlen < 31 else 0) - 1
+            if total > 0 and self.discovery_checked:
+                canvas.create_arc(cx - radius, cy - radius, cx + radius, cy + radius, start=90,
+                                  extent=-min(359.99, 360 * self.discovery_checked / total),
+                                  style="arc", outline=GREEN, width=3)
+
+        for index, ip in enumerate(self.radar_slots):
+            if ip is None:
+                continue
+            ring = index // 6
             angle = (index % 6 / 6 + ring / 12) * 2 * math.pi
-            r = radius * (0.46 if ring == 0 else 0.8)
+            r = radius * (0.46 if ring == 0 else 0.79)
             x, y = cx + r * math.cos(angle), cy + r * math.sin(angle)
-            dot = canvas.create_oval(x - 4, y - 4, x + 4, y + 4, fill=GREEN, outline="")
-            canvas.tag_bind(dot, "<Button-1>", lambda _event: self.select("Devices"))
-        status = f"{min(12, len(seen))} of {len(seen)} observed · schematic" if seen else "No devices observed yet · scan in Devices"
-        canvas.create_text(cx, height - 10, text=status, fill=MUTED, font=(FONT, 8))
+            recent = now - devices[ip]["last_seen"] <= ONLINE_WINDOW
+            selected = ip == self.radar_selected
+            size = 6 if selected else 4
+            dot = canvas.create_oval(x - size, y - size, x + size, y + size,
+                                     fill=GREEN if recent else "#638493",
+                                     outline=TEXT if selected else "", width=2)
+            canvas.tag_bind(dot, "<Button-1>", lambda _event, address=ip: self.select_radar_device(address))
+
+        adapter = (self.adapters or {}).get(self.adapter_box.get()) if hasattr(self, "adapter_box") else None
+        reading = self.wifi_sample
+        quality = f"  ·  Wi-Fi {reading[1]}%" if reading and reading[0] == adapter and reading[1] is not None else ""
+        if scan is not None:
+            status = f"Scanning {scan.network} · {self.discovery_checked:,}/{total:,} checked"
+        elif self.discovery_failed:
+            status = "Scan failed · open Devices for details"
+        elif devices:
+            shown = min(len(devices), 12)
+            status = f"{shown} of {len(devices)} devices" if len(devices) > shown else f"{shown} observed"
+        else:
+            status = "No devices observed · open Devices to scan"
+
+        selected = devices.get(self.radar_selected)
+        if selected:
+            last = time.strftime("%H:%M:%S", time.localtime(selected["last_seen"]))
+            detail = f"{self.radar_selected}  ·  {selected['mac'] or 'MAC unavailable'}  ·  {last}"
+        else:
+            detail = "Select a dot or use ← / →  ·  schematic layout"
+        self.radar_caption.configure(text=f"{status}{quality}\n{detail}")
 
     def draw_map(self):
         c = self.map
