@@ -16,6 +16,7 @@ let bucketWidth = 1000;
 let timedCount = 0;
 let deviceImportId = 0;
 let devices = new Map();
+let wifiReading = null;
 const liveAvailable = location.protocol === "http:" && location.hostname === "127.0.0.1";
 let liveMode = liveAvailable;
 let liveGeneration = 0;
@@ -321,7 +322,56 @@ function loadDevices(records, label) {
   renderDevice();
 }
 
+function renderRadar() {
+  const radar = get("radar");
+  const selected = get("device").value;
+  const visible = [...devices.values()].slice(0, 24);
+  if (selected && !visible.some((device) => device.ip === selected)) {
+    visible.splice(visible.length - 1, 1, devices.get(selected));
+  }
+  const previous = new Map(Array.from(radar.children, (button) => [button.dataset.ip, button]));
+  const wanted = new Set(visible.map((device) => device.ip));
+  for (const [ip, button] of previous) {
+    if (!wanted.has(ip)) button.remove();
+  }
+  visible.forEach((device, index) => {
+    let button = previous.get(device.ip);
+    if (!button) {
+      button = element("button");
+      button.type = "button";
+      button.dataset.ip = device.ip;
+      button.className = "radar-device";
+      button.addEventListener("click", () => {
+        get("device").value = device.ip;
+        renderDevice();
+        get("device").focus();
+      });
+      radar.append(button);
+    }
+    const ring = index < 6 ? 0 : index < 14 ? 1 : 2;
+    const start = [0, 6, 14][ring];
+    const slots = [6, 8, 10][ring];
+    const angle = ((index - start) / slots + ring / 20) * 2 * Math.PI - Math.PI / 2;
+    const radius = [20, 32, 43][ring];
+    button.style.left = `${50 + radius * Math.cos(angle)}%`;
+    button.style.top = `${50 + radius * Math.sin(angle)}%`;
+    button.title = device.name ? `${device.name} · ${device.ip}` : device.ip;
+    button.setAttribute("aria-label", button.title);
+    button.setAttribute("aria-pressed", String(selected === device.ip));
+  });
+  get("radar-count").textContent = devices.size
+    ? `${number.format(devices.size)} observed devices${devices.size > visible.length ? ` · ${visible.length} on radar` : ""}`
+    : "No devices observed yet.";
+  const signal = wifiReading?.signal;
+  const meter = get("wifi-meter");
+  meter.hidden = !Number.isFinite(signal);
+  if (!meter.hidden) meter.value = signal;
+  get("wifi-label").textContent = meter.hidden ? "Wi-Fi signal unavailable" :
+    `${wifiReading.adapter} · Wi-Fi signal ${signal}%`;
+}
+
 function renderDevice() {
+  renderRadar();
   const device = devices.get(get("device").value);
   const facts = get("device-facts");
   const activity = get("device-activity");
@@ -379,6 +429,7 @@ function load(rows, label) {
   setSessionTimes(rows);
   packets = rows;
   source = label;
+  wifiReading = null;
   loadDevices([], "Import an authorized inventory and activity CSV from the same session.");
   get("search").value = "";
   get("protocol").replaceChildren(new Option("All protocols", ""),
@@ -437,12 +488,15 @@ async function pollLive() {
         if (domain) activity.push({ ip: packet.source, domain, service: "", timestamp: packet.time });
       }
     }
+    wifiReading = data.wifi;
     loadDevices(activity, activity.length ? "Live inventory and observed DNS requests" : "No devices observed yet.");
     source = "Live capture";
     get("status").textContent = `${data.running ? "Capture running" : "Capture stopped · Start capture in the desktop app"} · ${number.format(packets.length)} recent packets · ${number.format(data.total)} captured`;
     render();
   } catch (error) {
     if (liveMode && generation === liveGeneration) {
+      wifiReading = null;
+      renderRadar();
       get("status").textContent = "Live feed disconnected. Displayed data may be stale. Reconnecting…";
     }
   } finally {

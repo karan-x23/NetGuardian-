@@ -117,7 +117,7 @@ NetGuardian is currently a working prototype focused on live monitoring, packet 
 1. Run `python gui_dashboard.py`.
 2. In **Devices**, select the adapter and subnet and approve **Scan subnet** to populate the live device inventory.
 3. Press **Start** in the desktop app and open **Live web dashboard** from the header. The browser follows the capture about once per second and displays the latest 5,000 packet rows, protocol and traffic charts, destination volume alerts, and discovered devices.
-4. Select a device to view its IP, MAC, last seen, traffic in the live window, and DNS requests visible to the capture. Encrypted DNS and traffic the adapter cannot see are unavailable.
+4. Click a dot on **Device radar** or select a device to view its IP, MAC, last seen, traffic in the live window, and DNS requests visible to the capture. Encrypted DNS and traffic the adapter cannot see are unavailable. Radar dots show observed devices in a schematic layout. The Wi-Fi meter shows the selected adapter’s link quality when Windows reports it.
 5. Use **Stop** in the desktop app to pause capture. The browser keeps the latest captured data visible. Closing the desktop app shuts down the local dashboard feed.
 
 ```mermaid
@@ -138,6 +138,10 @@ Use **Export** and **Export inventory** in the desktop app to save your session.
 In the Python desktop app, open **Devices**, select an adapter and its IPv4 subnet, and click **Scan subnet**. The app displays the exact range and asks for approval before sending ARP requests. A newly detected adapter with one eligible subnet triggers the same prompt.
 
 Discovery checks usable host addresses in directly connected private IPv4 or link-local subnets and lists devices that answer ARP. It runs in the background and can be cancelled. Devices that are asleep, isolated by Wi-Fi, or outside the selected subnet may be absent. Raw packet access requires the operating system's packet-capture permissions. On Windows, install Npcap and run with Administrator privileges if needed.
+
+### Wi-Fi coverage on Windows
+
+On **Devices**, select a connected Wi-Fi adapter. The signal percentage refreshes every few seconds while the page is open. Windows may require location access to report Wi-Fi link information. To measure usable range, compare the readings at known distances and note the farthest point where your connection still works reliably. The percentage measures link quality and does not encode distance.
 
 ## Device activity in Traffic Explorer
 

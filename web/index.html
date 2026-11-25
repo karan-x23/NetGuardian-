@@ -20,6 +20,17 @@
     </header>
     <p id="status" role="status"></p>
 
+    <section class="radar-panel" aria-labelledby="radar-title">
+      <div class="radar-copy">
+        <h2 id="radar-title">Device radar</h2>
+        <p id="radar-count"></p>
+        <label for="wifi-meter" id="wifi-label">Wi-Fi signal unavailable</label>
+        <meter id="wifi-meter" min="0" max="100" hidden></meter>
+        <p>Select a dot to open device details. Dot positions are illustrative.</p>
+      </div>
+      <div id="radar" class="radar" aria-label="Observed devices"></div>
+    </section>
+
     <section class="timeline-panel" aria-labelledby="timeline-title">
       <div class="panel-header">
         <div><h2 id="timeline-title">Traffic timeline</h2><p id="timeline-note"></p></div>

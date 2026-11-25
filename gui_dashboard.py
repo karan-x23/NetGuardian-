@@ -5,6 +5,7 @@ import math
 import os
 import re
 import socket
+import subprocess
 import threading
 import time
 import webbrowser
@@ -19,6 +20,7 @@ from scapy.all import ARP, DNS, DNSQR, ICMP, IP, TCP, UDP, AsyncSniffer, Ether, 
 
 from core.lan_discovery import adapter_subnets, scan_subnet
 from core.live_dashboard import LiveDashboard
+from core.wifi_signal import wifi_signal
 
 # ============================================================
 # SETTINGS
@@ -472,6 +474,8 @@ class App(tk.Tk):
         self.discovery_failed = False
         self.adapter_prompt_open = False
         self.live_dashboard = None
+        self.wifi_reading = None
+        self.wifi_sample = None
 
         self.setup_style()
         self.build_header()
@@ -633,6 +637,8 @@ class App(tk.Tk):
         self.current = name
         if name == "Logs":
             self.refresh_logs()
+        elif name == "Devices":
+            self.refresh_wifi_signal()
         self.update_idletasks()
         self.refresh_views()
 
@@ -844,6 +850,7 @@ class App(tk.Tk):
         controls.pack(fill="x", padx=12, pady=4)
         self.adapter_box = ttk.Combobox(controls, state="readonly", width=46)
         self.adapter_box.pack(side="left", padx=(0, 8))
+        self.adapter_box.bind("<<ComboboxSelected>>", lambda _event: self.refresh_wifi_signal())
         self.discovery_start = flat_button(controls, "Scan subnet", self.request_discovery, state="disabled")
         self.discovery_start.pack(side="left")
         self.discovery_stop = flat_button(controls, "Cancel scan", self.discovery_cancel.set, state="disabled")
@@ -853,6 +860,9 @@ class App(tk.Tk):
         self.discovery_status = tk.StringVar(value="Checking network adapters…")
         tk.Label(discovery, textvariable=self.discovery_status, bg=PANEL, fg=MUTED,
                  font=(FONT, 9), wraplength=800, justify="left").pack(anchor="w", padx=12, pady=4)
+        self.wifi_status = tk.StringVar(value="Select a connected Windows Wi-Fi adapter to view signal strength.")
+        tk.Label(discovery, textvariable=self.wifi_status, bg=PANEL, fg=TEXT,
+                 font=(FONT, 9)).pack(anchor="w", padx=12, pady=(0, 4))
         results = tk.Frame(discovery, bg=PANEL)
         results.pack(fill="x", padx=8, pady=(0, 8))
         self.discovery_tree = table(results, [("Responding IP", 170), ("MAC Address", 180)], height=5)
@@ -886,7 +896,47 @@ class App(tk.Tk):
                     if len(new_labels) == 1 and not self.adapter_prompt_open:
                         self.adapter_box.set(next(iter(new_labels)))
                         self.after_idle(self.request_discovery)
+        if self.current == "Devices" or self.live_dashboard is not None:
+            self.refresh_wifi_signal()
         self.after(3000, self.refresh_adapters)
+
+    def refresh_wifi_signal(self):
+        adapter = (self.adapters or {}).get(self.adapter_box.get())
+        if os.name != "nt" or adapter is None:
+            self.wifi_status.set("Wi-Fi signal is available for connected Windows Wi-Fi adapters.")
+            return
+        if self.wifi_reading is not None:
+            if self.wifi_reading != adapter:
+                self.wifi_status.set("Waiting for the selected adapter’s signal…")
+            return
+        self.wifi_reading = adapter
+        result = Queue(maxsize=1)
+
+        def read_signal():
+            try:
+                result.put(wifi_signal(adapter.mac))
+            except (OSError, subprocess.SubprocessError):
+                result.put(None)
+
+        def show_signal():
+            try:
+                signal = result.get_nowait()
+            except Empty:
+                self.after(100, show_signal)
+                return
+            self.wifi_reading = None
+            if (self.adapters or {}).get(self.adapter_box.get()) != adapter:
+                if self.current == "Devices" or self.live_dashboard is not None:
+                    self.refresh_wifi_signal()
+                return
+            self.wifi_sample = (adapter, signal)
+            if signal is None:
+                self.wifi_status.set("No Wi-Fi signal reported for this adapter. Check the connection and Windows location permissions.")
+            else:
+                self.wifi_status.set(f"Wi-Fi signal: {signal}% · Compare readings at known distances to measure coverage.")
+
+        threading.Thread(target=read_signal, daemon=True).start()
+        self.after(100, show_signal)
 
     def request_discovery(self):
         adapter = (self.adapters or {}).get(self.adapter_box.get())
@@ -1286,6 +1336,7 @@ class App(tk.Tk):
         try:
             if self.live_dashboard is None:
                 self.live_dashboard = LiveDashboard()
+            self.refresh_wifi_signal()
             self.publish_live_dashboard()
             if not webbrowser.open(self.live_dashboard.url):
                 self.clipboard_clear()
@@ -1311,7 +1362,10 @@ class App(tk.Tk):
             entry["timestamp"] = max(entry["timestamp"], observed)
             if ip == self.mon.local_ip:
                 entry["name"] = "This computer"
-        self.live_dashboard.publish({"running": self.mon.running, "packets": list(self.rows),
+        adapter = (self.adapters or {}).get(self.adapter_box.get())
+        signal = self.wifi_sample[1] if self.wifi_sample and self.wifi_sample[0] == adapter else None
+        wifi = {"adapter": adapter.name, "signal": signal} if adapter else None
+        self.live_dashboard.publish({"wifi": wifi, "running": self.mon.running, "packets": list(self.rows),
                                      "total": self.snap["packets"], "devices": list(inventory.values())})
 
     def tick(self):
