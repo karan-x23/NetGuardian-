@@ -41,8 +41,8 @@ This project is intended for authorized, defensive network monitoring use on net
 1. Clone the repository
 
    ```bash
-   git clone https://github.com/your-username/NetGuardian.git
-   cd NetGuardian
+   git clone https://github.com/karan-x23/NetGuardian-.git
+   cd NetGuardian-
    ```
 
 2. Create a virtual environment
@@ -109,3 +109,46 @@ NetGuardian is currently a working prototype focused on live monitoring, packet 
 - Packet capture depends on OS permissions and adapter support
 - Behavior can vary by system, OS, and network conditions
 - This is not a full enterprise-grade IDS/IPS platform
+
+## End-to-end workflow
+
+### Live network session
+
+1. Run `python gui_dashboard.py`.
+2. In **Devices**, select the adapter and subnet and approve **Scan subnet** to populate the live device inventory.
+3. Press **Start** in the desktop app and open **Live web dashboard** from the header. The browser follows the capture about once per second and displays the latest 5,000 packet rows, protocol and traffic charts, destination volume alerts, and discovered devices.
+4. Select a device to view its IP, MAC, last seen, traffic in the live window, and DNS requests visible to the capture. Encrypted DNS and traffic the adapter cannot see are unavailable.
+5. Use **Stop** in the desktop app to pause capture. The browser keeps the latest captured data visible. Closing the desktop app shuts down the local dashboard feed.
+
+```mermaid
+flowchart LR
+    A[Python desktop] --> B[Live packet capture]
+    A --> C[Approved adapter discovery]
+    B --> D[Local browser feed]
+    C --> D
+    D --> E[Timeline, alerts and device details]
+```
+
+### Saved sessions
+
+Use **Export** and **Export inventory** in the desktop app to save your session. In Traffic Explorer, import the packet CSV first, then the inventory CSV. Replay and speed controls are available for imported recordings. Select **Return to live** to resume the live feed when the browser was opened from the desktop app. The filtered traffic summary can be downloaded as JSON or saved as a PDF via **Print report**.
+
+## Local device discovery
+
+In the Python desktop app, open **Devices**, select an adapter and its IPv4 subnet, and click **Scan subnet**. The app displays the exact range and asks for approval before sending ARP requests. A newly detected adapter with one eligible subnet triggers the same prompt.
+
+Discovery checks usable host addresses in directly connected private IPv4 or link-local subnets and lists devices that answer ARP. It runs in the background and can be cancelled. Devices that are asleep, isolated by Wi-Fi, or outside the selected subnet may be absent. Raw packet access requires the operating system's packet-capture permissions. On Windows, install Npcap and run with Administrator privileges if needed.
+
+## Device activity in Traffic Explorer
+
+For additional device labels or authorized DNS activity in a saved session, open the matching packet export and import an inventory and activity CSV from the same network and time range. The browser associates packet bytes with inventory records by IPv4 address.
+
+Prepare a UTF-8 CSV with the following columns in order. Use sortable timestamps in a consistent format and timezone, such as UTC ISO 8601. The device name, MAC address, type and service are optional. Inventory-only rows may leave the domain blank. DHCP lease changes can reassign an IP, so import a single inventory snapshot per session.
+
+```csv
+Timestamp,IP,Name,MAC,Type,Domain,Service
+2026-11-25T09:30:00Z,192.0.2.10,Office Laptop,02:00:00:00:00:10,Laptop,,
+2026-11-25T09:31:00Z,192.0.2.10,,,,docs.example,Document editor
+```
+
+Each domain row represents one observed request. Domain records may include background traffic. Service and device-type labels come from the imported CSV. Traffic Explorer processes the data locally.

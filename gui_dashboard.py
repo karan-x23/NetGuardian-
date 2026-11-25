@@ -7,13 +7,18 @@ import re
 import socket
 import threading
 import time
+import webbrowser
 import tkinter as tk
 from collections import Counter, deque
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import lru_cache
+from queue import Empty, Queue
 from tkinter import filedialog, messagebox, ttk
 
 from scapy.all import ARP, DNS, DNSQR, ICMP, IP, TCP, UDP, AsyncSniffer, Ether, conf
+
+from core.lan_discovery import adapter_subnets, scan_subnet
+from core.live_dashboard import LiveDashboard
 
 # ============================================================
 # SETTINGS
@@ -459,6 +464,14 @@ class App(tk.Tk):
         self.filter_var = tk.StringVar()
         self.pages, self.current = {}, "Dashboard"
         self.err_shown = False
+        self.adapters = None
+        self.discovery_adapter = None
+        self.discovery_cancel = threading.Event()
+        self.discovery_events = Queue()
+        self.discovery_devices = {}
+        self.discovery_failed = False
+        self.adapter_prompt_open = False
+        self.live_dashboard = None
 
         self.setup_style()
         self.build_header()
@@ -484,6 +497,7 @@ class App(tk.Tk):
         # The user must press Start to begin monitoring.
         self.after(250, self.drain_packets)
         self.after(1000, self.tick)
+        self.after(500, self.refresh_adapters)
 
     # ---------- styling ----------
     def setup_style(self):
@@ -525,6 +539,7 @@ class App(tk.Tk):
 
         r = tk.Frame(hdr, bg="#0a2137")
         r.pack(side="right", padx=(0, 10), pady=8)
+        flat_button(r, "Live web dashboard", self.open_live_dashboard).pack(side="left", padx=(0, 8))
         live = tk.Frame(r, bg="#0d2541", highlightbackground="#1d4f7b", highlightthickness=1,
                         cursor="hand2")
         live.pack(anchor="e", pady=3, padx=(0, 8))
@@ -655,8 +670,17 @@ class App(tk.Tk):
             tk.Label(ctl, textvariable=self.v_cap, bg=PANEL, fg=BLUE, font=(FONT, 9)).pack(side="right", padx=14)
             tk.Label(ctl, text="Captured:", bg=PANEL, fg=TEXT, font=(FONT, 9)).pack(side="right")
             self.filter_entry(ctl)
-        tree = table(p, PKT_COLS)
-        tree.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        table_area = tk.Frame(p, bg=PANEL)
+        table_area.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        table_area.columnconfigure(0, weight=1)
+        table_area.rowconfigure(0, weight=1)
+        tree = table(table_area, PKT_COLS)
+        tree.grid(row=0, column=0, sticky="nsew")
+        vertical = ttk.Scrollbar(table_area, orient="vertical", command=tree.yview)
+        horizontal = ttk.Scrollbar(table_area, orient="horizontal", command=tree.xview)
+        vertical.grid(row=0, column=1, sticky="ns")
+        horizontal.grid(row=1, column=0, sticky="ew")
+        tree.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
         self.pkt_trees.append(tree)
         return p
 
@@ -676,10 +700,8 @@ class App(tk.Tk):
     def stat_card(self, parent, col, icon, color, label, sub_colors):
         c = card(parent)
         c.grid(row=0, column=col, sticky="nsew", padx=5, pady=0)
-        c.grid_propagate(False)
         icon_box = tk.Frame(c, bg="#102d48", highlightbackground="#23598d", highlightthickness=1)
         icon_box.pack(side="left", padx=(10, 8), pady=10)
-        icon_box.pack_propagate(False)
         tk.Label(icon_box, text=icon, bg="#102d48", fg=color, font=(FONT, 20)).pack(padx=12, pady=10)
         box = tk.Frame(c, bg=PANEL)
         box.pack(side="left", fill="both", expand=True, pady=13)
@@ -736,14 +758,12 @@ class App(tk.Tk):
         inner.columnconfigure(1, weight=0)
         self.pie = tk.Canvas(inner, bg=PANEL, width=170, height=170, highlightthickness=0)
         self.pie.grid(row=0, column=0, sticky="nsew")
-        self.pie_txt = self.pie.create_text(86, 78, text="0", fill=TEXT, font=(FONT, 18, "bold"))
-        self.pie.create_text(86, 100, text="pkts/s", fill=MUTED, font=(FONT, 9))
         legend = tk.Frame(inner, bg=PANEL)
         legend.grid(row=0, column=1, sticky="n", padx=(8, 0), pady=(12, 0))
         self.pie_vars = {}
         for i, (name, clr) in enumerate(PROTOCOLS):
             self.pie_vars[name] = tk.StringVar(value="0%")
-            tk.Label(legend, text="■", bg=PANEL, fg=clr).grid(row=i, column=0, pady=2)
+            tk.Label(legend, text="■", bg=PANEL, fg=clr).grid(row=i, column=0)
             tk.Label(legend, text=name, bg=PANEL, fg=TEXT, font=(FONT, 9)).grid(row=i, column=1, sticky="w", padx=6)
             tk.Label(legend, textvariable=self.pie_vars[name], bg=PANEL, fg=TEXT,
                      font=(FONT, 9)).grid(row=i, column=2, padx=(14, 0))
@@ -769,9 +789,10 @@ class App(tk.Tk):
         top = tk.Frame(p, bg=PANEL)
         top.pack(fill="x", padx=12, pady=(10, 4))
         heading(top, "Live Security Alerts").pack(side="left")
-        va = tk.Label(top, text="View All", bg=PANEL, fg=BLUE, font=(FONT, 9), cursor="hand2")
-        va.pack(side="right")
-        va.bind("<Button-1>", lambda e: self.select("Alerts"))
+        flat_button(top, "View All", lambda: self.select("Alerts"), padx=8, pady=1).pack(side="right")
+        self.v_alert_summary = tk.StringVar(value="No alerts this session")
+        tk.Label(p, textvariable=self.v_alert_summary, bg=PANEL, fg=MUTED,
+                 font=(FONT, 9)).pack(anchor="w", padx=12, pady=(0, 4))
         self.tree_alert = table(p, [("Time", 70), ("Alert", 160), ("Details", 300)])
         self.tree_alert.tag_configure("alert", foreground="#ff8a8a")
         self.tree_alert.pack(fill="both", expand=True, padx=8, pady=(0, 8))
@@ -815,6 +836,134 @@ class App(tk.Tk):
                                        ("Packets", 90), ("Data", 100), ("Status", 100), ("Last Seen", 100)])
         self.tree_dev_page.tag_configure("off", foreground="#f87171")
         self.tree_dev_page.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+
+        discovery = card(f)
+        discovery.grid(row=1, column=0, sticky="ew", padx=5, pady=4)
+        heading(discovery, "Local device discovery").pack(anchor="w", padx=12, pady=(8, 4))
+        controls = tk.Frame(discovery, bg=PANEL)
+        controls.pack(fill="x", padx=12, pady=4)
+        self.adapter_box = ttk.Combobox(controls, state="readonly", width=46)
+        self.adapter_box.pack(side="left", padx=(0, 8))
+        self.discovery_start = flat_button(controls, "Scan subnet", self.request_discovery, state="disabled")
+        self.discovery_start.pack(side="left")
+        self.discovery_stop = flat_button(controls, "Cancel scan", self.discovery_cancel.set, state="disabled")
+        self.discovery_stop.pack(side="left", padx=6)
+        self.discovery_export = flat_button(controls, "Export inventory", self.export_inventory, state="disabled")
+        self.discovery_export.pack(side="left")
+        self.discovery_status = tk.StringVar(value="Checking network adapters…")
+        tk.Label(discovery, textvariable=self.discovery_status, bg=PANEL, fg=MUTED,
+                 font=(FONT, 9), wraplength=800, justify="left").pack(anchor="w", padx=12, pady=4)
+        results = tk.Frame(discovery, bg=PANEL)
+        results.pack(fill="x", padx=8, pady=(0, 8))
+        self.discovery_tree = table(results, [("Responding IP", 170), ("MAC Address", 180)], height=5)
+        scrollbar = ttk.Scrollbar(results, orient="vertical", command=self.discovery_tree.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.discovery_tree.configure(yscrollcommand=scrollbar.set)
+        self.discovery_tree.pack(side="left", fill="both", expand=True)
+
+    def refresh_adapters(self):
+        try:
+            adapters = adapter_subnets()
+        except (OSError, RuntimeError, ValueError) as exc:
+            if self.discovery_adapter is None:
+                self.discovery_status.set(f"Could not read network adapters: {exc}")
+        else:
+            previous = self.adapters
+            self.adapters = adapters
+            if previous != adapters:
+                label = self.adapter_box.get()
+                self.adapter_box.configure(values=tuple(adapters))
+                self.adapter_box.set(label if label in adapters else next(iter(adapters), ""))
+                if self.discovery_adapter and (
+                    adapters.get(self.discovery_adapter.label) != self.discovery_adapter
+                ):
+                    self.discovery_cancel.set()
+                elif self.discovery_adapter is None:
+                    self.discovery_start.configure(state="normal" if adapters else "disabled")
+                    self.discovery_status.set("Select an adapter and approve the scan." if adapters else
+                                              "No connected adapter with a private IPv4 subnet.")
+                    new_labels = adapters.keys() - previous.keys() if previous is not None else set()
+                    if len(new_labels) == 1 and not self.adapter_prompt_open:
+                        self.adapter_box.set(next(iter(new_labels)))
+                        self.after_idle(self.request_discovery)
+        self.after(3000, self.refresh_adapters)
+
+    def request_discovery(self):
+        adapter = (self.adapters or {}).get(self.adapter_box.get())
+        if adapter is None or self.discovery_adapter or self.adapter_prompt_open:
+            return
+        self.adapter_prompt_open = True
+        try:
+            allowed = messagebox.askyesno(
+                "Allow local device discovery?",
+                f"Adapter: {adapter.name}\nIPv4 range: {adapter.network}\n\n"
+                "Send ARP requests across this directly connected subnet to list responding devices? "
+                "Continue only if you have permission to scan this network.",
+                default="no", parent=self,
+            )
+        finally:
+            self.adapter_prompt_open = False
+        if not allowed or (self.adapters or {}).get(adapter.label) != adapter:
+            return
+        self.select("Devices")
+        self.discovery_cancel.clear()
+        self.discovery_devices.clear()
+        self.discovery_failed = False
+        self.discovery_tree.delete(*self.discovery_tree.get_children())
+        self.discovery_adapter = adapter
+        self.discovery_status.set(f"Scanning {adapter.network}…")
+        self.discovery_start.configure(state="disabled")
+        self.discovery_export.configure(state="disabled")
+        self.discovery_stop.configure(state="normal")
+        threading.Thread(target=scan_subnet, args=(adapter, self.discovery_cancel, self.discovery_events),
+                         daemon=True).start()
+        self.after(150, self.update_discovery)
+
+    def update_discovery(self):
+        try:
+            while True:
+                kind, data, scanned = self.discovery_events.get_nowait()
+                if kind == "devices":
+                    observed = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    for ip, mac in data:
+                        if (ip, mac) not in self.discovery_devices:
+                            self.discovery_tree.insert("", "end", values=(ip, mac))
+                        self.discovery_devices[ip, mac] = observed
+                    self.discovery_status.set(f"Checked {scanned:,} addresses · {len(self.discovery_devices):,} found (including this PC)")
+                elif kind == "error":
+                    self.discovery_failed = True
+                    self.discovery_status.set(f"Scan failed: {data}. Raw packet access may require administrator privileges or Npcap.")
+                elif kind == "done":
+                    if not self.discovery_failed:
+                        state = "Scan cancelled" if data else "Scan complete"
+                        self.discovery_status.set(f"{state} · {scanned:,} checked · {len(self.discovery_devices):,} found (including this PC)")
+                    self.discovery_adapter = None
+                    self.discovery_start.configure(state="normal" if self.adapters else "disabled")
+                    self.discovery_stop.configure(state="disabled")
+                    if self.discovery_devices and not self.discovery_failed:
+                        self.discovery_export.configure(state="normal")
+                    return
+        except Empty:
+            self.after(150, self.update_discovery)
+
+
+    def export_inventory(self):
+        path = filedialog.asksaveasfilename(
+            parent=self, defaultextension=".csv", initialfile="netguardian-inventory.csv",
+            filetypes=[("CSV file", "*.csv")],
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", newline="", encoding="utf-8") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(["Timestamp", "IP", "Name", "MAC", "Type", "Domain", "Service"])
+                for (ip, mac), observed in self.discovery_devices.items():
+                    writer.writerow([observed, ip, "", mac, "", "", ""])
+        except OSError as exc:
+            messagebox.showerror("Inventory export failed", str(exc), parent=self)
+            return
+        self.discovery_status.set(f"Exported {len(self.discovery_devices):,} inventory records.")
 
     def page_capture(self, f):
         f.columnconfigure(0, weight=1)
@@ -928,9 +1077,9 @@ class App(tk.Tk):
             c.create_text(pad_left - 6, y, text=fmt_rate(y_top * frac, compact=True), anchor="e",
                           fill=MUTED, font=(FONT, 8))
 
-        for series, line_color, glow_color, fill_color in (
-            (self.mon.down, "#3fa9ff", "#8fd1ff", "#163d68"),
-            (self.mon.up, "#a88dff", "#d8caff", "#2e245a")
+        for series, line_color, dash in (
+            (self.mon.down, "#3fa9ff", ()),
+            (self.mon.up, "#c1aaff", (5, 3)),
         ):
             if not series:
                 continue
@@ -942,16 +1091,16 @@ class App(tk.Tk):
                 pts.extend([x, y])
 
             if len(pts) >= 4:
-                fill_pts = pts + [w - pad_right, h - pad_bottom, pad_left, h - pad_bottom]
-                c.create_polygon(fill_pts, fill=fill_color, outline="", smooth=False)
-                c.create_line(pts, fill=glow_color, width=7, smooth=False)
-                c.create_line(pts, fill=line_color, width=3, smooth=False, splines=False)
+                c.create_line(pts, fill=line_color, width=2, dash=dash)
 
         now = time.time()
-        for k in range(0, HIST, 12):
-            x = pad_left + int(round(chart_w * k / (HIST - 1)))
-            label = time.strftime("%H:%M:%S", time.localtime(now - (HIST - 1 - k)))
-            c.create_text(x, h - 8, text=label, fill=MUTED, font=(FONT, 8))
+        tick_count = max(1, chart_w // 76)
+        for i in range(tick_count + 1):
+            fraction = i / tick_count
+            x = pad_left + round(chart_w * fraction)
+            label = time.strftime("%H:%M:%S", time.localtime(now - (HIST - 1) * (1 - fraction)))
+            anchor = "w" if i == 0 else "e" if i == tick_count else "center"
+            c.create_text(x, h - 8, text=label, anchor=anchor, fill=MUTED, font=(FONT, 8))
 
     def draw_pie(self):
         c = self.pie
@@ -959,6 +1108,8 @@ class App(tk.Tk):
         counts = self.snap["protocols"]
         total = sum(counts.values())
         w, h = c.winfo_width(), c.winfo_height()
+        if min(w, h) < 64:
+            return
         layout = pie_layout(w, h)
         cx, cy, r = layout["cx"], layout["cy"], layout["r"]
 
@@ -980,8 +1131,8 @@ class App(tk.Tk):
         for name, _ in PROTOCOLS:
             share = counts.get(name, 0) * 100 / total if total else 0
             self.pie_vars[name].set(f"{share:.0f}%")
-        c.itemconfig(self.pie_txt, text=f"{self.mon.pps[-1]:.0f}")
-        c.coords(self.pie_txt, cx, layout["text_y"])
+        c.create_text(cx, cy - 7, text=f"{self.mon.pps[-1]:.0f}", fill=TEXT, font=(FONT, 12, "bold"))
+        c.create_text(cx, cy + 9, text="pkts/s", fill=MUTED, font=(FONT, 8))
 
     def draw_map(self):
         c = self.map
@@ -1131,11 +1282,44 @@ class App(tk.Tk):
     # ============================================================
     # REFRESH LOOP
     # ============================================================
+    def open_live_dashboard(self):
+        try:
+            if self.live_dashboard is None:
+                self.live_dashboard = LiveDashboard()
+            self.publish_live_dashboard()
+            if not webbrowser.open(self.live_dashboard.url):
+                self.clipboard_clear()
+                self.clipboard_append(self.live_dashboard.url)
+                messagebox.showinfo("Live web dashboard", "Local dashboard URL copied. Paste it into your browser.",
+                                    parent=self)
+        except OSError as exc:
+            messagebox.showerror("Live web dashboard", str(exc), parent=self)
+
+    def publish_live_dashboard(self):
+        if self.live_dashboard is None:
+            return
+        inventory = {}
+        for (ip, mac), observed in self.discovery_devices.items():
+            existing = inventory.get(ip)
+            if existing and existing["mac"] != mac:
+                existing["mac"] = ""
+                continue
+            inventory[ip] = {"ip": ip, "mac": mac, "timestamp": observed}
+        for ip, device in self.snap["devices"].items():
+            observed = datetime.fromtimestamp(device["last_seen"], timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            entry = inventory.setdefault(ip, {"ip": ip, "mac": device["mac"], "timestamp": observed})
+            entry["timestamp"] = max(entry["timestamp"], observed)
+            if ip == self.mon.local_ip:
+                entry["name"] = "This computer"
+        self.live_dashboard.publish({"running": self.mon.running, "packets": list(self.rows),
+                                     "total": self.snap["packets"], "devices": list(inventory.values())})
+
     def tick(self):
         try:
             self.check_sniffer()
             self.mon.sample()
             self.snap = self.mon.snapshot()
+            self.publish_live_dashboard()
             self.refresh_views()
         finally:
             self.after(1000, self.tick)
@@ -1164,6 +1348,7 @@ class App(tk.Tk):
         secs = int(now - self.t0)
         self.v_uptime.set(f"Uptime: {secs // 3600:02d}:{secs % 3600 // 60:02d}:{secs % 60:02d}")
         n = s["alert_total"]
+        self.v_alert_summary.set(f"{n:,} alerts this session" if n else "No alerts this session")
         self.badge.config(text="99+" if n > 99 else str(n), bg=RED if n else "#2a4a45")
 
         for c in self.usage_canvases:
@@ -1244,6 +1429,9 @@ class App(tk.Tk):
             messagebox.showerror("Report Error", str(e))
 
     def close(self):
+        self.discovery_cancel.set()
+        if self.live_dashboard is not None:
+            self.live_dashboard.close()
         self.mon.close()
         self.destroy()
 

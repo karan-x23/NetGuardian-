@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetGuardian | Traffic Explorer</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="dashboard.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <div><p class="brand">NETGUARDIAN</p><h1>Traffic Explorer</h1></div>
+      <div class="actions">
+        <label class="upload">Import packet CSV <input id="file" type="file" accept=".csv,text/csv"></label>
+        <button id="return-live" type="button" hidden>Return to live</button>
+        <button id="download" type="button">Download summary</button>
+        <button id="print" type="button">Print report</button>
+      </div>
+    </header>
+    <p id="status" role="status"></p>
+
+    <section class="timeline-panel" aria-labelledby="timeline-title">
+      <div class="panel-header">
+        <div><h2 id="timeline-title">Traffic timeline</h2><p id="timeline-note"></p></div>
+        <div class="actions">
+          <button id="replay" type="button">Replay</button>
+          <label>Speed <select id="speed"><option value="1">1×</option><option value="2" selected>2×</option><option value="5">5×</option></select></label>
+          <button id="show-all" type="button">Show full session</button>
+        </div>
+      </div>
+      <div id="timeline" class="timeline" aria-label="Filter by traffic interval"></div>
+      <div class="timeline-axis"><span id="time-start"></span><span id="time-end"></span></div>
+    </section>
+
+    <section class="filters" aria-label="Packet filters">
+      <label>Search address or packet info<input id="search" type="search" placeholder="e.g. 192.0.2.10"></label>
+      <label>Protocol<select id="protocol"></select></label>
+      <label>Alert threshold (packets per destination)<input id="threshold" type="number" min="1" step="1" value="20"></label>
+    </section>
+
+    <div id="scope" class="scope" hidden>
+      <span id="scope-text"></span><button id="clear-scope" type="button">Clear selection</button>
+    </div>
+
+    <dl class="metrics">
+      <div><dt>Matching packets</dt><dd id="packets"></dd></div>
+      <div><dt>Traffic volume</dt><dd id="volume"></dd></div>
+      <div><dt>Destination addresses</dt><dd id="destinations"></dd></div>
+    </dl>
+
+    <div class="panels">
+      <section><h2>Protocol distribution</h2><ul id="distribution" class="bars"></ul></section>
+      <section><h2>Destination volume alerts</h2><p>Destinations at or above the packet threshold in the filtered data.</p><ul id="alerts"></ul><p id="alert-evidence" hidden></p></section>
+    </div>
+
+    <section class="packet-panel" aria-labelledby="device-title">
+      <div class="panel-header">
+        <div><h2 id="device-title">Device details</h2><p id="device-status" role="status"></p></div>
+        <label class="upload">Import device activity CSV <input id="device-file" type="file" accept=".csv,text/csv"></label>
+      </div>
+      <label class="device-picker">Device <select id="device"></select></label>
+      <dl class="device-facts" id="device-facts"></dl>
+      <h3>Observed domains and services</h3>
+      <p>Domain requests can come from background apps. Service labels come from the imported records.</p>
+      <div class="table-wrap" tabindex="0" aria-label="Scrollable domain activity">
+        <table>
+          <thead><tr><th scope="col">Domain</th><th scope="col">Reported service</th><th scope="col">Requests</th><th scope="col">Last observed</th></tr></thead>
+          <tbody id="device-activity"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="packet-panel">
+      <h2>Packet details</h2><p id="row-count"></p>
+      <div class="table-wrap" tabindex="0" aria-label="Scrollable packet table">
+        <table>
+          <thead><tr><th scope="col">Time</th><th scope="col">Source</th><th scope="col">Destination</th><th scope="col">Protocol</th><th scope="col">Bytes</th><th scope="col">Info</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
