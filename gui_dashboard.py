@@ -10,16 +10,17 @@ import threading
 import time
 import webbrowser
 import tkinter as tk
-from collections import Counter, deque
+from collections import Counter, OrderedDict, deque
 from datetime import datetime, timezone
 from functools import lru_cache
 from queue import Empty, Queue
 from tkinter import filedialog, messagebox, ttk
 
-from scapy.all import ARP, DNS, DNSQR, ICMP, IP, TCP, UDP, AsyncSniffer, Ether, conf
+from scapy.all import ARP, DNS, DNSQR, ICMP, IP, TCP, UDP, AsyncSniffer, Ether, IPv6, PcapReader, conf
 
 from core.lan_discovery import adapter_subnets, scan_subnet
 from core.live_dashboard import LiveDashboard
+from core.packet_inspection import display_filter, packet_conversation, packet_headers
 from core.wifi_signal import wifi_signal
 
 # ============================================================
@@ -184,18 +185,22 @@ def read_log_tail(n=300):
         return []
 
 
-def parse_packet(pkt):
+def parse_packet(pkt, allow_ipv6=False):
     """scapy packet -> dict for the UI, or None if it is not IP / ARP."""
     if ARP in pkt:
         a = pkt[ARP]
         info = f"Who has {a.pdst}? Tell {a.psrc}" if a.op == 1 else f"{a.psrc} is at {a.hwsrc}"
         return dict(src=a.psrc, dst=a.pdst, protocol="ARP", port="", info=info,
                     mac=a.hwsrc, length=len(pkt))
-    if IP not in pkt:
+    if IP in pkt:
+        ip = pkt[IP]
+        network_protocol = ip.proto
+    elif allow_ipv6 and IPv6 in pkt:
+        ip = pkt[IPv6]
+        network_protocol = ip.nh
+    else:
         return None
-
-    ip = pkt[IP]
-    proto, port, info = "Others", "", f"IP protocol {ip.proto}"
+    proto, port, info = "Others", "", f"IP protocol {network_protocol}"
     if TCP in pkt:
         t = pkt[TCP]
         flags = ", ".join(FLAG_NAMES.get(c, c) for c in str(t.flags))
@@ -250,6 +255,7 @@ class TrafficMonitor:
         self.alerts = []           # newest first, max 100
         self.alert_total = 0
 
+        self.headers = OrderedDict()
         self.queue = deque(maxlen=5000)   # packets waiting for the UI
         self.down = deque([0.0] * HIST, maxlen=HIST)   # bits per second
         self.up = deque([0.0] * HIST, maxlen=HIST)
@@ -291,8 +297,12 @@ class TrafficMonitor:
             now = datetime.now()
             src, dst, proto, port, length = info["src"], info["dst"], info["protocol"], info["port"], info["length"]
 
+            headers = packet_headers(pkt)
             with self.lock:
                 self.total_packets += 1
+                self.headers[self.total_packets] = headers
+                if len(self.headers) > MAX_ROWS:
+                    self.headers.popitem(last=False)
                 self.total_bytes += length
                 self._acc_pkts += 1
                 if dst == self.local_ip:
@@ -378,6 +388,10 @@ class TrafficMonitor:
                         ip_bytes=Counter(self.ip_bytes),
                         devices={ip: dict(d) for ip, d in self.devices.items()},
                         alerts=list(self.alerts), alert_total=self.alert_total)
+
+    def headers_for(self, packet_id):
+        with self.lock:
+            return self.headers.get(packet_id, {})
 
     def drain(self, limit=300):
         out = []
@@ -682,11 +696,14 @@ class App(tk.Tk):
         e.pack(side="left", ipady=3)
         e.bind("<Return>", lambda ev: self.refilter())   # Enter = apply to rows already shown
 
-    def packet_panel(self, parent, title, controls=True, clear=True):
+    def packet_panel(self, parent, title, controls=True, clear=True, inspect=False):
         p = card(parent)
         top = tk.Frame(p, bg=PANEL)
         top.pack(fill="x", padx=12, pady=(8, 4))
         heading(top, title).pack(side="left")
+        if inspect:
+            flat_button(top, "Open PCAP", self.open_capture_file).pack(side="right")
+            flat_button(top, "Capture statistics", self.open_capture_analysis).pack(side="right", padx=6)
         if controls:
             ctl = tk.Frame(p, bg=PANEL)
             ctl.pack(fill="x", padx=12, pady=(0, 6))
@@ -709,6 +726,8 @@ class App(tk.Tk):
         horizontal.grid(row=1, column=0, sticky="ew")
         tree.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
         self.pkt_trees.append(tree)
+        if inspect:
+            self.build_packet_inspector(p, tree)
         return p
 
     def usage_panel(self, parent, height=150):
@@ -1057,7 +1076,208 @@ class App(tk.Tk):
     def page_capture(self, f):
         f.columnconfigure(0, weight=1)
         f.rowconfigure(0, weight=1)
-        self.packet_panel(f, "📦 Packet Capture").grid(row=0, column=0, sticky="nsew", padx=5, pady=4)
+        self.packet_panel(f, "Packet Capture", inspect=True).grid(row=0, column=0, sticky="nsew", padx=5, pady=4)
+
+    def open_capture_file(self):
+        path = filedialog.askopenfilename(parent=self, filetypes=[
+            ("Capture files", ("*.pcap", "*.pcapng")), ("All files", "*")
+        ])
+        if path:
+            self.open_capture_analysis(path)
+
+    def open_capture_analysis(self, path=None):
+        window = tk.Toplevel(self, bg=BG)
+        window.title("NetGuardian · Capture Analysis")
+        window.geometry("950x640")
+        window.minsize(700, 520)
+        top = tk.Frame(window, bg=BG)
+        top.pack(fill="x", padx=14, pady=10)
+        heading_label = tk.Label(top, text=os.path.basename(path) if path else "Live Capture Statistics",
+                                 bg=BG, fg=TEXT, font=(FONT, 14, "bold"))
+        heading_label.pack(side="left")
+        status = tk.StringVar(value="Reading capture…" if path else "")
+        tk.Label(window, textvariable=status, bg=BG, fg=MUTED).pack(anchor="w", padx=14)
+        tabs = ttk.Notebook(window, style="Dashboard.TNotebook")
+        tabs.pack(fill="both", expand=True, padx=14, pady=(8, 12))
+
+        def add_tab(label, columns):
+            frame = card(tabs)
+            tabs.add(frame, text=label)
+            area = tk.Frame(frame, bg=PANEL)
+            tree = table(area, columns)
+            vertical = ttk.Scrollbar(area, orient="vertical", command=tree.yview)
+            horizontal = ttk.Scrollbar(area, orient="horizontal", command=tree.xview)
+            horizontal.pack(side="bottom", fill="x")
+            vertical.pack(side="right", fill="y")
+            tree.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
+            tree.pack(fill="both", expand=True)
+            return frame, area, tree
+
+        packet_tab, packet_area, packets = add_tab("Packets", PKT_COLS)
+        ctl = tk.Frame(packet_tab, bg=PANEL)
+        ctl.pack(fill="x", padx=8, pady=6)
+        packet_area.pack(fill="both", expand=True, padx=8)
+        _, protocol_area, protocols = add_tab("Protocols", [("Protocol", 130), ("Packets", 85), ("Bytes", 100)])
+        _, endpoint_area, endpoints = add_tab("Endpoints", [("Address", 220), ("Packets", 85), ("Bytes", 100)])
+        conversation_tab, conversation_area, conversations = add_tab("Conversations", [
+            ("Protocol", 95), ("Endpoint A", 230), ("Endpoint B", 230), ("Packets", 85), ("Bytes", 100)])
+        for area in (protocol_area, endpoint_area, conversation_area):
+            area.pack(fill="both", expand=True, padx=8, pady=8)
+
+        rows, headers, conversation_keys = [], {}, {}
+        query = tk.StringVar()
+        active_conversation = None
+        self.build_packet_inspector(packet_tab, packets, lambda packet_id: headers.get(packet_id, {}))
+        tk.Label(ctl, text="Display filter", bg=PANEL, fg=TEXT).pack(side="left")
+        entry = ttk.Entry(ctl, textvariable=query)
+        entry.pack(side="left", fill="x", expand=True, padx=8)
+        scope = tk.StringVar()
+        tk.Label(ctl, textvariable=scope, bg=PANEL, fg=MUTED).pack(side="right", padx=8)
+
+        def show_packets(_event=None):
+            matcher = display_filter(query.get(), lambda packet_id: headers.get(packet_id, {}),
+                                     [name for name, _ in PROTOCOLS] + ["IPv6"])
+            selected = (row for row in rows if (active_conversation is None or
+                        packet_conversation(row, headers.get(row[0], {})) == active_conversation) and matcher(row))
+            fill(packets, selected)
+            scope.set(f"{len(packets.get_children()):,} matching")
+
+        def clear_filter():
+            nonlocal active_conversation
+            active_conversation = None
+            query.set("")
+            show_packets()
+
+        def choose_conversation(_event=None):
+            nonlocal active_conversation
+            selected = conversations.selection()
+            if selected:
+                active_conversation = conversation_keys[selected[0]]
+                tabs.select(packet_tab)
+                query.set("")
+                show_packets()
+
+        flat_button(ctl, "Apply", show_packets).pack(side="left")
+        flat_button(ctl, "Clear", clear_filter).pack(side="left", padx=6)
+        entry.bind("<Return>", show_packets)
+        conversations.bind("<Double-Button-1>", choose_conversation)
+        conversations.bind("<Return>", choose_conversation)
+        controls = tk.Frame(conversation_tab, bg=PANEL)
+        controls.pack(fill="x", padx=8, pady=(0, 6))
+        flat_button(controls, "Show selected packets", choose_conversation).pack(side="left")
+
+        def populate(records, packet_fields, label):
+            rows[:] = records
+            headers.clear()
+            headers.update(packet_fields)
+            packet_counts = {kind: Counter() for kind in ("protocol", "endpoint", "conversation")}
+            byte_counts = {kind: Counter() for kind in packet_counts}
+            for row in rows:
+                for kind, entries in (
+                    ("protocol", (row[4],)),
+                    ("endpoint", set(row[2:4]) - {""}),
+                    ("conversation", (packet_conversation(row, headers.get(row[0], {})),)),
+                ):
+                    for key in entries:
+                        packet_counts[kind][key] += 1
+                        byte_counts[kind][key] += row[5]
+
+            for kind, tree in (("protocol", protocols), ("endpoint", endpoints)):
+                fill(tree, [(key, count, byte_counts[kind][key]) for key, count in packet_counts[kind].most_common()])
+            conversations.delete(*conversations.get_children())
+            conversation_keys.clear()
+            for key, count in packet_counts["conversation"].most_common():
+                protocol, *peers = key
+                labels = []
+                for address, port in peers:
+                    if port is not None:
+                        address = f"[{address}]:{port}" if ":" in address else f"{address}:{port}"
+                    labels.append(address)
+                item = conversations.insert("", "end", values=(protocol, *labels, count, byte_counts["conversation"][key]))
+                conversation_keys[item] = key
+            status.set(label)
+            clear_filter()
+
+        if path is None:
+            def refresh():
+                records = list(self.rows)
+                with self.mon.lock:
+                    fields = {row[0]: self.mon.headers.get(row[0], {}) for row in records}
+                populate(records, fields, f"{len(records):,} retained packets")
+            flat_button(top, "Refresh", refresh).pack(side="right")
+            refresh()
+            return
+
+        results = Queue(maxsize=1)
+
+        def read_capture():
+            try:
+                records, fields = [], {}
+                with PcapReader(path) as reader:
+                    for index, packet in enumerate(reader, 1):
+                        if index > MAX_ROWS:
+                            break
+                        info = parse_packet(packet, allow_ipv6=True)
+                        if info is None:
+                            continue
+                        stamp = datetime.fromtimestamp(float(packet.time)).strftime("%H:%M:%S.%f")[:-3]
+                        records.append((index, stamp, info["src"], info["dst"], info["protocol"],
+                                        info["length"], info["info"]))
+                        fields[index] = packet_headers(packet)
+                label = f"{len(records):,} supported packets · up to the first {MAX_ROWS:,} frames read"
+                results.put((records, fields, label))
+            except Exception as exc:
+                results.put(([], {}, f"Could not read capture: {exc}"))
+
+        def read_result():
+            if not window.winfo_exists():
+                return
+            try:
+                result = results.get_nowait()
+            except Empty:
+                self.after(100, read_result)
+                return
+            populate(*result)
+
+        threading.Thread(target=read_capture, daemon=True).start()
+        self.after(100, read_result)
+
+    def build_packet_inspector(self, parent, packets, header_lookup=None):
+        header_lookup = header_lookup or self.mon.headers_for
+        panel = tk.Frame(parent, bg=PANEL)
+        panel.pack(fill="both", padx=8, pady=(2, 8))
+        title = tk.StringVar(value="Select a packet to inspect its headers")
+        tk.Label(panel, textvariable=title, font=(FONT, 11, "bold"), bg=PANEL, fg=TEXT).pack(anchor="w", padx=4)
+        tk.Label(panel, text="Filter examples: tcp · 192.168.1.4 · udp port:53",
+                 font=(FONT, 9), bg=PANEL, fg=MUTED).pack(anchor="w", padx=4, pady=(2, 5))
+        details = ttk.Treeview(panel, columns=("value",), show="tree headings", height=7, style="Dark.Treeview")
+        details.heading("#0", text="Layer / field", anchor="w")
+        details.heading("value", text="Value", anchor="w")
+        details.column("#0", width=190, stretch=False)
+        details.column("value", width=240)
+        scrollbar = ttk.Scrollbar(panel, orient="vertical", command=details.yview)
+        scrollbar.pack(side="right", fill="y")
+        details.configure(yscrollcommand=scrollbar.set)
+        details.pack(fill="both", expand=True)
+
+        def show_packet(_event=None):
+            details.delete(*details.get_children())
+            selected = packets.selection()
+            if not selected:
+                title.set("Select a packet to inspect its headers")
+                return
+            packet_id, observed, src, dst, protocol, length, info = packets.item(selected[0], "values")
+            title.set(f"Packet {packet_id} · {protocol} · {length} bytes")
+            frame = details.insert("", "end", text="Frame", open=True)
+            for label, value in (("Time", observed), ("Source", src), ("Destination", dst), ("Summary", info)):
+                details.insert(frame, "end", text=label, values=(value,))
+            headers = header_lookup(int(packet_id))
+            for layer, fields in headers.items():
+                section = details.insert("", "end", text=layer)
+                for field, value in fields.items():
+                    details.insert(section, "end", text=field, values=(str(value) if value is not None else "Unavailable",))
+
+        packets.bind("<<TreeviewSelect>>", show_packet)
 
     def page_protocols(self, f):
         f.columnconfigure((0, 1), weight=1, uniform="pr")
@@ -1397,11 +1617,7 @@ class App(tk.Tk):
     # PACKETS
     # ============================================================
     def filter_rule(self):
-        text = self.filter_var.get().lower()
-        ips = re.findall(r"\d+\.\d+\.\d+\.\d+", text)
-        protos = {n.lower() for n, _ in PROTOCOLS if re.search(rf"\b{n.lower()}\b", text)}
-        return lambda row: (not ips or any(ip in (row[2], row[3]) for ip in ips)) and \
-                           (not protos or row[4].lower() in protos)
+        return display_filter(self.filter_var.get(), self.mon.headers_for, [name for name, _ in PROTOCOLS])
 
     def insert_rows(self, tree, rows):
         at_bottom = tree.yview()[1] >= 0.999          # only auto-scroll if the user is at the bottom

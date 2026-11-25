@@ -110,6 +110,14 @@ NetGuardian is currently a working prototype focused on live monitoring, packet 
 - Behavior can vary by system, OS, and network conditions
 - This is not a full enterprise-grade IDS/IPS platform
 
+## Packet inspector
+
+Open **Packet Capture** and select a row to view its frame summary and expandable Ethernet, ARP, IPv4, TCP, UDP, ICMP, or DNS fields when available. The inspector keeps headers for the latest 5,000 captured packets in memory. Use the filter to match a protocol, an IP address, or a source or destination port, for example `tcp port:443` or `192.168.1.4 udp port:53`. Press Enter to apply it to displayed rows.
+
+### Capture analysis
+
+Use **Open PCAP** on the Packet Capture page to inspect a PCAP or PCAPNG file in a separate window. It reads up to the first 5,000 frames and analyzes supported Ethernet/IP and ARP traffic, including IPv6 from saved captures. **Capture statistics** opens the same analysis for the latest retained live packets. The Protocols, Endpoints, and Conversations tabs show packet and byte totals. Select a conversation and choose **Show selected packets** to inspect both directions of that exchange.
+
 ## End-to-end workflow
 
 ### Live network session
