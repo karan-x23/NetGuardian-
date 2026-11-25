@@ -529,6 +529,11 @@ class App(tk.Tk):
         self.option_add("*TCombobox*Listbox.foreground", TEXT)
         self.option_add("*TCombobox*Listbox.selectBackground", "#dde7fc")
         self.option_add("*TCombobox*Listbox.selectForeground", TEXT)
+        s.configure("Dashboard.TNotebook", background=PANEL, borderwidth=0, tabmargins=(0, 0, 0, 0))
+        s.configure("Dashboard.TNotebook.Tab", background=PANEL_ALT, foreground=MUTED,
+                    padding=(9, 5), font=(FONT, 9))
+        s.map("Dashboard.TNotebook.Tab", background=[("selected", "#dde7fc")],
+              foreground=[("selected", BLUE)])
 
     # ---------- header / status bar / sidebar ----------
     def build_header(self):
@@ -742,18 +747,17 @@ class App(tk.Tk):
     # ============================================================
     def page_dashboard(self, main):
         main.columnconfigure(0, weight=1)
-        main.rowconfigure(0, weight=0)
-        for r in (1, 2, 3):
-            main.rowconfigure(r, weight=1)
+        main.rowconfigure(1, weight=5, uniform="dashboard")
+        main.rowconfigure(2, weight=4, uniform="dashboard")
         self.v_cap = tk.StringVar(value="0 packets")
 
-        def row(i, weights):
-            f = tk.Frame(main, bg=BG)
-            f.grid(row=i, column=0, sticky="nsew", padx=0, pady=(0, 8))
-            f.rowconfigure(0, weight=1)
-            for c, w in enumerate(weights):
-                f.columnconfigure(c, weight=w, uniform=f"r{i}")
-            return f
+        def row(index, weights):
+            frame = tk.Frame(main, bg=BG)
+            frame.grid(row=index, column=0, sticky="nsew", pady=(0, 10))
+            frame.rowconfigure(0, weight=1)
+            for column, weight in enumerate(weights):
+                frame.columnconfigure(column, weight=weight, uniform=f"dashboard{index}")
+            return frame
 
         # row 0: stat cards
         stats = row(0, [1] * 5)
@@ -765,66 +769,14 @@ class App(tk.Tk):
         self.v_total, (self.v_tdown, self.v_tup) = self.stat_card(stats, 4, BLUE, "Total Data (Session)",
                                                                   [BLUE, PURPLE])
 
-        # row 1: usage chart, protocol donut, top IPs
-        r1 = row(1, [5, 4, 4])
-        self.usage_panel(r1).grid(row=0, column=0, sticky="nsew", padx=5)
+        overview = row(1, [3, 2])
+        self.usage_panel(overview).grid(row=0, column=0, sticky="nsew", padx=5)
 
-        p = card(r1)
+        p = card(overview)
         p.grid(row=0, column=1, sticky="nsew", padx=5)
-        heading(p, "Protocol Distribution").pack(anchor="w", padx=12, pady=(10, 0))
-        inner = tk.Frame(p, bg=PANEL)
-        inner.pack(fill="both", expand=True, padx=8, pady=(0, 8))
-        inner.columnconfigure(0, weight=1)
-        inner.columnconfigure(1, weight=0)
-        self.pie = tk.Canvas(inner, bg=PANEL, width=170, height=170, highlightthickness=0)
-        self.pie.grid(row=0, column=0, sticky="nsew")
-        legend = tk.Frame(inner, bg=PANEL)
-        legend.grid(row=0, column=1, sticky="n", padx=(8, 0), pady=(12, 0))
-        self.pie_vars = {}
-        for i, (name, clr) in enumerate(PROTOCOLS):
-            self.pie_vars[name] = tk.StringVar(value="0%")
-            tk.Label(legend, text="■", bg=PANEL, fg=clr).grid(row=i, column=0)
-            tk.Label(legend, text=name, bg=PANEL, fg=TEXT, font=(FONT, 9)).grid(row=i, column=1, sticky="w", padx=6)
-            tk.Label(legend, textvariable=self.pie_vars[name], bg=PANEL, fg=TEXT,
-                     font=(FONT, 9)).grid(row=i, column=2, padx=(14, 0))
-
-        p = card(r1)
-        p.grid(row=0, column=2, sticky="nsew", padx=5)
-        heading(p, "Top IP Addresses (By Traffic)").pack(anchor="w", padx=12, pady=(10, 4))
-        self.tree_top = table(p, [("#", 30), ("IP Address", 140), ("Data Usage", 90)])
-        self.tree_top.pack(fill="both", expand=True, padx=8, pady=(0, 8))
-
-        # row 2: devices + live alerts
-        r2 = row(2, [1, 1])
-        p = card(r2)
-        p.grid(row=0, column=0, sticky="nsew", padx=5)
-        heading(p, "Connected Devices").pack(anchor="w", padx=12, pady=(10, 4))
-        self.tree_dev = table(p, [("IP Address", 110), ("MAC Address", 140), ("Device Name", 100),
-                                  ("Status", 80), ("Data", 90)])
-        self.tree_dev.tag_configure("off", foreground=RED)
-        self.tree_dev.pack(fill="both", expand=True, padx=8, pady=(0, 8))
-
-        p = card(r2)
-        p.grid(row=0, column=1, sticky="nsew", padx=5)
+        heading(p, "Network View").pack(anchor="w", padx=14, pady=(10, 0))
         top = tk.Frame(p, bg=PANEL)
-        top.pack(fill="x", padx=12, pady=(10, 4))
-        heading(top, "Live Security Alerts").pack(side="left")
-        flat_button(top, "View All", lambda: self.select("Alerts"), padx=8, pady=1).pack(side="right")
-        self.v_alert_summary = tk.StringVar(value="No alerts this session")
-        tk.Label(p, textvariable=self.v_alert_summary, bg=PANEL, fg=MUTED,
-                 font=(FONT, 9)).pack(anchor="w", padx=12, pady=(0, 4))
-        self.tree_alert = table(p, [("Time", 70), ("Alert", 160), ("Details", 300)])
-        self.tree_alert.tag_configure("alert", foreground=RED)
-        self.tree_alert.pack(fill="both", expand=True, padx=8, pady=(0, 8))
-
-        # row 3: packet capture + network map
-        r3 = row(3, [2, 1])
-        self.packet_panel(r3, "📄 Packet Capture (Live)", clear=False).grid(row=0, column=0, sticky="nsew", padx=5)
-
-        p = card(r3)
-        p.grid(row=0, column=1, sticky="nsew", padx=5)
-        top = tk.Frame(p, bg=PANEL)
-        top.pack(fill="x", padx=12, pady=(10, 0))
+        top.pack(fill="x", padx=14, pady=(6, 0))
         self.network_view = tk.StringVar(value="Device Radar")
         picker = ttk.Combobox(top, textvariable=self.network_view, state="readonly",
                               values=("Device Radar", "Network Map"), width=14)
@@ -841,6 +793,63 @@ class App(tk.Tk):
         self.map.bind("<Configure>", lambda _event: self.draw_network_view())
         self.map.bind("<Left>", lambda _event: self.step_radar(-1))
         self.map.bind("<Right>", lambda _event: self.step_radar(1))
+
+        details = row(2, [2, 1])
+        self.packet_panel(details, "Live Packet Capture", clear=False).grid(
+            row=0, column=0, sticky="nsew", padx=5
+        )
+
+        activity = card(details)
+        activity.grid(row=0, column=1, sticky="nsew", padx=5)
+        top = tk.Frame(activity, bg=PANEL)
+        top.pack(fill="x", padx=12, pady=(10, 6))
+        heading(top, "Session Details").pack(side="left")
+        flat_button(top, "All alerts", lambda: self.select("Alerts"), padx=8, pady=1).pack(side="right")
+        tabs = ttk.Notebook(activity, style="Dashboard.TNotebook")
+        tabs.pack(fill="both", expand=True, padx=10, pady=(0, 8))
+        protocol_tab, device_tab, alert_tab, ip_tab = [
+            tk.Frame(tabs, bg=PANEL) for _ in range(4)
+        ]
+        for tab, label in ((protocol_tab, "Protocols"), (device_tab, "Devices"),
+                           (alert_tab, "Alerts"), (ip_tab, "Top IPs")):
+            tabs.add(tab, text=label)
+        inner = tk.Frame(protocol_tab, bg=PANEL)
+        inner.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        inner.columnconfigure(0, weight=1)
+        inner.columnconfigure(1, weight=0)
+        inner.rowconfigure(0, weight=1)
+        self.pie = tk.Canvas(inner, bg=PANEL, width=138, height=138, highlightthickness=0)
+        self.pie.grid(row=0, column=0, sticky="nsew")
+        legend = tk.Frame(inner, bg=PANEL)
+        legend.grid(row=0, column=1, sticky="n", padx=(8, 0), pady=(12, 0))
+        self.pie_vars = {}
+        for i, (name, clr) in enumerate(PROTOCOLS):
+            self.pie_vars[name] = tk.StringVar(value="0%")
+            tk.Label(legend, text="■", bg=PANEL, fg=clr).grid(row=i, column=0)
+            tk.Label(legend, text=name, bg=PANEL, fg=TEXT, font=(FONT, 9)).grid(row=i, column=1, sticky="w", padx=6)
+            tk.Label(legend, textvariable=self.pie_vars[name], bg=PANEL, fg=TEXT,
+                     font=(FONT, 9)).grid(row=i, column=2, padx=(14, 0))
+
+        self.tree_dev = table(device_tab, [("IP Address", 100), ("MAC Address", 115), ("Device Name", 85),
+                                           ("Status", 70), ("Data", 60)])
+        self.tree_dev.tag_configure("off", foreground=RED)
+
+        self.v_alert_summary = tk.StringVar(value="No alerts this session")
+        tk.Label(alert_tab, textvariable=self.v_alert_summary, bg=PANEL, fg=MUTED,
+                 font=(FONT, 9)).pack(anchor="w", padx=6, pady=6)
+        self.tree_alert = table(alert_tab, [("Time", 68), ("Alert", 125), ("Details", 175)])
+        self.tree_alert.tag_configure("alert", foreground=RED)
+
+        self.tree_top = table(ip_tab, [("#", 30), ("IP Address", 140), ("Data Usage", 90)])
+        for tree in (self.tree_dev, self.tree_alert, self.tree_top):
+            for column in tree["columns"]:
+                tree.column(column, minwidth=tree.column(column, "width"))
+            horizontal = ttk.Scrollbar(tree.master, orient="horizontal", command=tree.xview)
+            vertical = ttk.Scrollbar(tree.master, orient="vertical", command=tree.yview)
+            horizontal.pack(side="bottom", fill="x")
+            vertical.pack(side="right", fill="y")
+            tree.configure(xscrollcommand=horizontal.set, yscrollcommand=vertical.set)
+            tree.pack(side="left", fill="both", expand=True)
 
     def page_live(self, f):
         f.columnconfigure(0, weight=1)
