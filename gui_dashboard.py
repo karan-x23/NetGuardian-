@@ -33,21 +33,23 @@ HIST = 60                  # seconds of history in the usage chart
 ONLINE_WINDOW = 60         # device counts as "Online" if seen in the last N seconds
 MAX_ROWS = 5000            # packets kept in memory for Export
 
-# ---------- reference-inspired dark cyber dashboard ----------
-BG = "#061a2d"
-SIDE = "#0b1d2f"
-PANEL = "#0d233b"
-PANEL_ALT = "#0f2b43"
-BORDER = "#1d5689"
-TEXT = "#edf7ff"
-MUTED = "#8fb0d1"
-BLUE = "#2aa8ff"
-GREEN = "#3ed7a3"
-RED = "#ff5e7d"
-YELLOW = "#f5d76d"
-PURPLE = "#a66af5"
-GRAY = "#7e9bb3"
-BTN = "#123d69"
+# ---------- dashboard palette ----------
+BG = "#101619"
+SIDE = "#151d21"
+PANEL = "#192328"
+PANEL_ALT = "#202c32"
+BORDER = "#34444c"
+TEXT = "#edf3f5"
+MUTED = "#a5b7bf"
+BLUE = "#61d4c3"
+GREEN = "#8bdcae"
+RED = "#ff9c9e"
+YELLOW = "#e8c678"
+PURPLE = "#b5acee"
+GRAY = "#a0aeb7"
+BTN = "#263840"
+ACTIVE_BG = "#28594d"
+STOP_BG = "#773b43"
 FONT = "Segoe UI"
 
 NAV = [("🏠", "Dashboard"), ("📈", "Live Monitor"), ("🖥", "Devices"), ("📦", "Packet Capture"),
@@ -438,11 +440,11 @@ def flat_button(parent, text, command, bg=BTN, **kw):
     opts = dict(padx=14, pady=4)
     opts.update(kw)
     btn = tk.Button(parent, text=text, command=command, bg=bg, fg=TEXT, relief="solid", bd=1,
-                    highlightbackground="#2a6ea8", highlightthickness=1, highlightcolor="#7bd5ff",
-                    activebackground="#1f5f97", activeforeground=TEXT, font=(FONT, 9, "bold"),
+                    highlightbackground="#4c676d", highlightthickness=1, highlightcolor="#8dded2",
+                    activebackground="#365459", activeforeground=TEXT, font=(FONT, 9, "bold"),
                     cursor="hand2", **opts)
-    btn.bind("<Enter>", lambda e: btn.config(bg="#1a5a8e", highlightbackground="#7bd5ff"))
-    btn.bind("<Leave>", lambda e: btn.config(bg=bg, highlightbackground="#2a6ea8"))
+    btn.bind("<Enter>", lambda e: btn.config(bg="#304a50", highlightbackground="#8dded2"))
+    btn.bind("<Leave>", lambda e: btn.config(bg=bg, highlightbackground="#4c676d"))
     return btn
 
 
@@ -513,58 +515,67 @@ class App(tk.Tk):
         s.layout("Dark.Treeview", [("Treeview.treearea", {"sticky": "nswe"})])
         s.configure("Dark.Treeview", background=PANEL, fieldbackground=PANEL, foreground=TEXT,
                     rowheight=23, borderwidth=0, font=(FONT, 9))
-        s.configure("Dark.Treeview.Heading", background="#102b4f", foreground=TEXT, relief="flat",
+        s.configure("Dark.Treeview.Heading", background="#243139", foreground=TEXT, relief="flat",
                     borderwidth=0, font=(FONT, 9))
-        s.map("Dark.Treeview", background=[("selected", "#153d6e")], foreground=[("selected", TEXT)])
-        s.map("Dark.Treeview.Heading", background=[("active", "#102b4f")])
+        s.map("Dark.Treeview", background=[("selected", "#264447")], foreground=[("selected", TEXT)])
+        s.map("Dark.Treeview.Heading", background=[("active", "#243139")])
+        s.configure("TCombobox", fieldbackground=BG, background=BTN, foreground=TEXT,
+                    arrowcolor=TEXT, bordercolor=BORDER, lightcolor=BORDER, darkcolor=BORDER)
+        s.map("TCombobox", fieldbackground=[("readonly", BG)], foreground=[("readonly", TEXT)])
+        s.configure("TScrollbar", background=BTN, troughcolor=BG, bordercolor=BORDER,
+                    arrowcolor=MUTED, lightcolor=BTN, darkcolor=BTN)
+        self.option_add("*TCombobox*Listbox.background", BG)
+        self.option_add("*TCombobox*Listbox.foreground", TEXT)
+        self.option_add("*TCombobox*Listbox.selectBackground", "#264447")
+        self.option_add("*TCombobox*Listbox.selectForeground", TEXT)
 
     # ---------- header / status bar / sidebar ----------
     def build_header(self):
-        hdr = tk.Frame(self, bg="#0a2137", highlightbackground=BORDER, highlightthickness=1)
+        hdr = tk.Frame(self, bg="#151d21", highlightbackground=BORDER, highlightthickness=1)
         hdr.pack(fill="x", padx=12, pady=(10, 8))
 
-        brand = tk.Frame(hdr, bg="#0a2137")
+        brand = tk.Frame(hdr, bg="#151d21")
         brand.pack(side="left", padx=(4, 8))
         logo = tk.Canvas(brand, width=34, height=34, bg=BG, highlightthickness=0)
         logo.pack(side="left")
-        logo.create_oval(4, 4, 30, 30, fill="#0d2647", outline="#2aa8ff", width=2)
-        logo.create_polygon(15, 9, 21, 15, 21, 22, 15, 28, 9, 22, 9, 15, fill="#2aa8ff", outline="#2aa8ff")
-        logo.create_polygon(12, 16, 15, 13, 18, 16, 15, 19, fill="#dfeeff", outline="#dfeeff")
+        logo.create_oval(4, 4, 30, 30, fill="#202c32", outline="#61d4c3", width=2)
+        logo.create_polygon(15, 9, 21, 15, 21, 22, 15, 28, 9, 22, 9, 15, fill="#61d4c3", outline="#61d4c3")
+        logo.create_polygon(12, 16, 15, 13, 18, 16, 15, 19, fill="#edf3f5", outline="#edf3f5")
         t = tk.Frame(brand, bg=BG)
         t.pack(side="left", padx=(6, 0))
         tk.Label(t, text=APP_NAME, fg=TEXT, bg=BG, font=(FONT, 18, "bold")).pack(anchor="w")
-        tk.Label(t, text="Network Monitor & Security Analyzer", fg="#a8c7eb", bg=BG,
+        tk.Label(t, text="Network Monitor & Security Analyzer", fg="#a5b7bf", bg=BG,
                  font=(FONT, 9)).pack(anchor="w")
 
-        search = tk.Frame(hdr, bg="#081d31", highlightbackground="#1d4f7b", highlightthickness=1)
+        search = tk.Frame(hdr, bg="#10191d", highlightbackground="#42575f", highlightthickness=1)
         search.pack(side="left", expand=True, fill="x", padx=(10, 12), pady=4)
-        tk.Label(search, text="🔍", bg="#081d31", fg="#8bc2ff", font=(FONT, 10)).pack(side="left", padx=(10, 6))
-        e = tk.Entry(search, bg="#081d31", fg=TEXT, relief="flat", insertbackground=TEXT,
+        tk.Label(search, text="🔍", bg="#10191d", fg="#a2ccc9", font=(FONT, 10)).pack(side="left", padx=(10, 6))
+        e = tk.Entry(search, bg="#10191d", fg=TEXT, relief="flat", insertbackground=TEXT,
                      highlightthickness=0, width=36, font=(FONT, 10), justify="left")
         e.insert(0, "Search devices, IPs, domains, ports...")
         e.pack(side="left", fill="x", expand=True, padx=(0, 10), pady=7)
 
-        r = tk.Frame(hdr, bg="#0a2137")
+        r = tk.Frame(hdr, bg="#151d21")
         r.pack(side="right", padx=(0, 10), pady=8)
         flat_button(r, "Live web dashboard", self.open_live_dashboard).pack(side="left", padx=(0, 8))
-        live = tk.Frame(r, bg="#0d2541", highlightbackground="#1d4f7b", highlightthickness=1,
+        live = tk.Frame(r, bg="#202c32", highlightbackground="#42575f", highlightthickness=1,
                         cursor="hand2")
         live.pack(anchor="e", pady=3, padx=(0, 8))
         self.live_status = live
-        self.live_dot = tk.Label(live, text="●", fg=GREEN, bg="#0d2541", font=(FONT, 11, "bold"))
+        self.live_dot = tk.Label(live, text="●", fg=GREEN, bg="#202c32", font=(FONT, 11, "bold"))
         self.live_dot.pack(side="left", padx=(10, 4), pady=4)
         self.v_live = tk.StringVar(value=" Monitoring Active")
-        self.live_label = tk.Label(live, textvariable=self.v_live, fg="#dff9ff", bg="#0d2541",
+        self.live_label = tk.Label(live, textvariable=self.v_live, fg="#edf3f5", bg="#202c32",
                                    font=(FONT, 9, "bold"), cursor="hand2")
         self.live_label.pack(side="left", padx=(0, 10), pady=4)
         live.bind("<Button-1>", lambda e: self.toggle_monitoring())
         self.live_label.bind("<Button-1>", lambda e: self.toggle_monitoring())
 
-        info = tk.Frame(r, bg="#0a2137")
+        info = tk.Frame(r, bg="#151d21")
         info.pack(anchor="e", pady=2)
         tk.Label(info, text=f"{datetime.now().strftime('%a, %d %b %Y')}  {time.strftime('%H:%M:%S')}",
-                 fg="#9ecbff", bg="#0a2137", font=(FONT, 9)).pack(side="right", padx=(6, 0))
-        bell = tk.Label(info, text="🔔", fg="#dfeeff", bg="#0a2137", font=(FONT, 9), padx=8)
+                 fg="#adbfca", bg="#151d21", font=(FONT, 9)).pack(side="right", padx=(6, 0))
+        bell = tk.Label(info, text="🔔", fg="#edf3f5", bg="#151d21", font=(FONT, 9), padx=8)
         bell.pack(side="right")
 
     def build_statusbar(self):
@@ -588,14 +599,14 @@ class App(tk.Tk):
         side.pack_propagate(False)
         self.nav = {}
         for icon, name in NAV:
-            row = tk.Frame(side, bg=SIDE, cursor="hand2", highlightbackground="#2d4b6d",
+            row = tk.Frame(side, bg=SIDE, cursor="hand2", highlightbackground="#42575f",
                            highlightthickness=0)
             row.pack(fill="x", padx=8, pady=2)
             lbl = tk.Label(row, text=f"{icon}   {name}", bg=SIDE, fg=TEXT, font=(FONT, 10),
                            anchor="w", padx=10, pady=8)
             lbl.pack(side="left", fill="x", expand=True)
             if name == "Alerts":
-                self.badge = tk.Label(row, text="0", bg=RED, fg="white",
+                self.badge = tk.Label(row, text="0", bg=STOP_BG, fg=TEXT,
                                       font=(FONT, 8, "bold"), width=4, padx=2, pady=1)
                 self.badge.pack(side="right", padx=(0, 12))
             for w in (row, lbl):
@@ -607,8 +618,8 @@ class App(tk.Tk):
         footer.pack(side="bottom", fill="x", padx=10, pady=(10, 12))
         shield = tk.Canvas(footer, width=42, height=42, bg=SIDE, highlightthickness=0)
         shield.pack(side="left")
-        shield.create_oval(6, 6, 36, 36, fill="#0f2d45", outline="#2aa8ff", width=2)
-        shield.create_polygon(21, 12, 30, 17, 30, 26, 21, 31, 12, 26, 12, 17, fill="#2aa8ff", outline="#2aa8ff")
+        shield.create_oval(6, 6, 36, 36, fill="#22323a", outline="#61d4c3", width=2)
+        shield.create_polygon(21, 12, 30, 17, 30, 26, 21, 31, 12, 26, 12, 17, fill="#61d4c3", outline="#61d4c3")
         tk.Label(footer, text=f"{APP_NAME}\n{VERSION}", bg=SIDE, fg=TEXT,
                  font=(FONT, 10, "bold"), justify="left").pack(side="left", padx=(6, 0))
 
@@ -617,21 +628,21 @@ class App(tk.Tk):
             return
         row, lbl = self.nav[name]
         if active:
-            row.config(bg="#123449", highlightthickness=1, highlightbackground="#3aa8ff")
-            lbl.config(bg="#123449", fg="#ebfff4")
+            row.config(bg="#243b3d", highlightthickness=1, highlightbackground="#61d4c3")
+            lbl.config(bg="#243b3d", fg="#edf3f5")
         else:
-            row.config(bg=SIDE, highlightthickness=0, highlightbackground="#2d4b4d")
+            row.config(bg=SIDE, highlightthickness=0, highlightbackground="#435b60")
             lbl.config(bg=SIDE, fg=TEXT)
 
     def select(self, name):
         for n, (row, lbl) in self.nav.items():
             selected = n == name
-            bg = "#123449" if selected else SIDE
+            bg = "#243b3d" if selected else SIDE
             row.config(bg=bg, highlightthickness=1 if selected else 0)
-            row.config(highlightbackground="#35a5ff" if selected else "#2d4b4d")
+            row.config(highlightbackground="#61d4c3" if selected else "#435b60")
             lbl.config(bg=bg)
             if selected:
-                lbl.config(fg="#e9fff5")
+                lbl.config(fg="#edf3f5")
             else:
                 lbl.config(fg=TEXT)
         for f in self.pages.values():
@@ -649,7 +660,7 @@ class App(tk.Tk):
     def cap_buttons_in(self, parent):
         """Start / Stop buttons; every pair is kept in sync by refresh_capture_ui()."""
         bk = dict(relief="solid", bd=1, font=(FONT, 9), padx=14, pady=4, cursor="hand2", fg="white",
-                  disabledforeground=MUTED, highlightthickness=1, highlightbackground="#2d4b4d")
+                  disabledforeground=MUTED, highlightthickness=1, highlightbackground="#435b60")
         start = tk.Button(parent, text="▶ Start", command=lambda: self.set_capture(True), **bk)
         stop = tk.Button(parent, text="⏹ Stop", command=lambda: self.set_capture(False), **bk)
         start.pack(side="left")
@@ -659,7 +670,7 @@ class App(tk.Tk):
     def filter_entry(self, parent):
         tk.Label(parent, text="Filter (IP / tcp / udp ...):", bg=PANEL, fg=TEXT,
                  font=(FONT, 9)).pack(side="left", padx=(14, 4))
-        e = tk.Entry(parent, textvariable=self.filter_var, width=20, bg="#0d1517", fg="#bfead4", relief="flat",
+        e = tk.Entry(parent, textvariable=self.filter_var, width=20, bg="#111a1e", fg="#d7e7e3", relief="flat",
                      insertbackground=TEXT, highlightbackground=BORDER, highlightthickness=1, font=(FONT, 9))
         e.pack(side="left", ipady=3)
         e.bind("<Return>", lambda ev: self.refilter())   # Enter = apply to rows already shown
@@ -709,9 +720,9 @@ class App(tk.Tk):
     def stat_card(self, parent, col, icon, color, label, sub_colors):
         c = card(parent)
         c.grid(row=0, column=col, sticky="nsew", padx=5, pady=0)
-        icon_box = tk.Frame(c, bg="#102d48", highlightbackground="#23598d", highlightthickness=1)
+        icon_box = tk.Frame(c, bg="#243139", highlightbackground="#435b63", highlightthickness=1)
         icon_box.pack(side="left", padx=(10, 8), pady=10)
-        tk.Label(icon_box, text=icon, bg="#102d48", fg=color, font=(FONT, 20)).pack(padx=12, pady=10)
+        tk.Label(icon_box, text=icon, bg="#243139", fg=color, font=(FONT, 20)).pack(padx=12, pady=10)
         box = tk.Frame(c, bg=PANEL)
         box.pack(side="left", fill="both", expand=True, pady=13)
         tk.Label(box, text=label, bg=PANEL, fg=TEXT, font=(FONT, 10)).pack(anchor="w")
@@ -790,7 +801,7 @@ class App(tk.Tk):
         heading(p, "Connected Devices").pack(anchor="w", padx=12, pady=(10, 4))
         self.tree_dev = table(p, [("IP Address", 110), ("MAC Address", 140), ("Device Name", 100),
                                   ("Status", 80), ("Data", 90)])
-        self.tree_dev.tag_configure("off", foreground="#f87171")
+        self.tree_dev.tag_configure("off", foreground="#ff9c9e")
         self.tree_dev.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
         p = card(r2)
@@ -803,7 +814,7 @@ class App(tk.Tk):
         tk.Label(p, textvariable=self.v_alert_summary, bg=PANEL, fg=MUTED,
                  font=(FONT, 9)).pack(anchor="w", padx=12, pady=(0, 4))
         self.tree_alert = table(p, [("Time", 70), ("Alert", 160), ("Details", 300)])
-        self.tree_alert.tag_configure("alert", foreground="#ff8a8a")
+        self.tree_alert.tag_configure("alert", foreground="#ff9c9e")
         self.tree_alert.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
         # row 3: packet capture + network map
@@ -854,7 +865,7 @@ class App(tk.Tk):
                  bg=PANEL, fg=MUTED, font=(FONT, 9)).pack(anchor="w", padx=12, pady=(0, 6))
         self.tree_dev_page = table(p, [("IP Address", 130), ("MAC Address", 160), ("Device Name", 130),
                                        ("Packets", 90), ("Data", 100), ("Status", 100), ("Last Seen", 100)])
-        self.tree_dev_page.tag_configure("off", foreground="#f87171")
+        self.tree_dev_page.tag_configure("off", foreground="#ff9c9e")
         self.tree_dev_page.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
         discovery = card(f)
@@ -1071,7 +1082,7 @@ class App(tk.Tk):
                                                                                             pady=(0, 6))
         self.tree_alerts_page = table(p, [("Time", 90), ("Alert", 170), ("Port", 70), ("Packets", 80),
                                           ("Details", 380)])
-        self.tree_alerts_page.tag_configure("alert", foreground="#ff8a8a")
+        self.tree_alerts_page.tag_configure("alert", foreground="#ff9c9e")
         self.tree_alerts_page.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
     def page_logs(self, f):
@@ -1095,8 +1106,8 @@ class App(tk.Tk):
         heading(p, "📊 Reports").pack(anchor="w", padx=12, pady=(10, 2))
         tk.Label(p, text="Saves a text report (packets, protocols, ports, top IPs, alerts) in the current folder.",
                  bg=PANEL, fg=MUTED, font=(FONT, 9)).pack(anchor="w", padx=12, pady=(0, 10))
-        tk.Button(p, text="Generate Report", command=self.generate_report, bg="#2a4a45", fg="white",
-                  relief="solid", bd=1, highlightbackground="#7ae1a6", highlightthickness=1,
+        tk.Button(p, text="Generate Report", command=self.generate_report, bg="#263b37", fg="white",
+                  relief="solid", bd=1, highlightbackground="#87caaa", highlightthickness=1,
                   font=(FONT, 10, "bold"), padx=18, pady=6, cursor="hand2").pack(anchor="w", padx=12)
         self.v_report = tk.StringVar()
         tk.Label(p, textvariable=self.v_report, bg=PANEL, fg=GREEN, font=(FONT, 9)).pack(anchor="w", padx=12,
@@ -1109,12 +1120,12 @@ class App(tk.Tk):
         r = tk.Frame(p, bg=PANEL)
         r.pack(anchor="w", padx=12, pady=4)
         tk.Label(r, text="Alert threshold (packets per port):", bg=PANEL, fg=TEXT, font=(FONT, 10)).pack(side="left")
-        self.threshold_entry = tk.Entry(r, width=8, bg="#0d1517", fg=TEXT, relief="flat", insertbackground=TEXT,
+        self.threshold_entry = tk.Entry(r, width=8, bg="#111a1e", fg=TEXT, relief="flat", insertbackground=TEXT,
                                         highlightbackground=BORDER, highlightthickness=1, font=(FONT, 10))
         self.threshold_entry.insert(0, str(self.mon.threshold))
         self.threshold_entry.pack(side="left", padx=10, ipady=3)
-        tk.Button(r, text="Save", command=self.save_settings, bg="#2a4a45", fg="white", relief="solid",
-                  bd=1, highlightbackground="#7ae1a6", highlightthickness=1,
+        tk.Button(r, text="Save", command=self.save_settings, bg="#263b37", fg="white", relief="solid",
+                  bd=1, highlightbackground="#87caaa", highlightthickness=1,
                   font=(FONT, 9, "bold"), padx=16, pady=3, cursor="hand2").pack(side="left")
         for label, value in (("Interface", self.mon.iface), ("Local IP", self.mon.local_ip),
                              ("Gateway", self.mon.gateway or "unknown"), ("Log file", os.path.abspath(LOG_FILE))):
@@ -1142,13 +1153,13 @@ class App(tk.Tk):
 
         for frac in (0, 0.25, 0.5, 0.75, 1):
             y = pad_top + chart_h - int(chart_h * frac)
-            c.create_line(pad_left, y, w - pad_right, y, fill="#1d3a59", width=1)
+            c.create_line(pad_left, y, w - pad_right, y, fill="#31434a", width=1)
             c.create_text(pad_left - 6, y, text=fmt_rate(y_top * frac, compact=True), anchor="e",
                           fill=MUTED, font=(FONT, 8))
 
         for series, line_color, dash in (
-            (self.mon.down, "#3fa9ff", ()),
-            (self.mon.up, "#c1aaff", (5, 3)),
+            (self.mon.down, "#61d4c3", ()),
+            (self.mon.up, "#b5acee", (5, 3)),
         ):
             if not series:
                 continue
@@ -1182,7 +1193,7 @@ class App(tk.Tk):
         layout = pie_layout(w, h)
         cx, cy, r = layout["cx"], layout["cy"], layout["r"]
 
-        c.create_oval(cx - r, cy - r, cx + r, cy + r, fill="#0b2038", outline="#214d77", width=2)
+        c.create_oval(cx - r, cy - r, cx + r, cy + r, fill="#111a1e", outline="#455d66", width=2)
         if total == 0:
             c.create_arc(cx - r + 8, cy - r + 8, cx + r - 8, cy + r - 8, start=90, extent=-359.9,
                          style="arc", outline=BORDER, width=18, tags="arc")
@@ -1196,7 +1207,7 @@ class App(tk.Tk):
                              extent=max(extent, -359.9), style="arc", outline=clr, width=18, tags="arc")
                 start += extent
         inner_r = layout["inner_r"]
-        c.create_oval(cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r, fill="#0f2339", outline="")
+        c.create_oval(cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r, fill="#192328", outline="")
         for name, _ in PROTOCOLS:
             share = counts.get(name, 0) * 100 / total if total else 0
             self.pie_vars[name].set(f"{share:.0f}%")
@@ -1252,12 +1263,12 @@ class App(tk.Tk):
 
         cx, cy = width / 2, height / 2
         canvas.create_oval(cx - radius, cy - radius, cx + radius, cy + radius,
-                           fill="#0a2433", outline="#397575")
+                           fill="#111e22", outline="#4c7675")
         for fraction in (0.33, 0.66):
             r = radius * fraction
-            canvas.create_oval(cx - r, cy - r, cx + r, cy + r, outline="#274e59")
-        canvas.create_line(cx - radius, cy, cx + radius, cy, fill="#274e59")
-        canvas.create_line(cx, cy - radius, cx, cy + radius, fill="#274e59")
+            canvas.create_oval(cx - r, cy - r, cx + r, cy + r, outline="#304a50")
+        canvas.create_line(cx - radius, cy, cx + radius, cy, fill="#304a50")
+        canvas.create_line(cx, cy - radius, cx, cy + radius, fill="#304a50")
         canvas.create_oval(cx - 3, cy - 3, cx + 3, cy + 3, fill=BLUE, outline="")
         now = time.time()
         scan = self.discovery_adapter
@@ -1280,7 +1291,7 @@ class App(tk.Tk):
             selected = ip == self.radar_selected
             size = 6 if selected else 4
             dot = canvas.create_oval(x - size, y - size, x + size, y + size,
-                                     fill=GREEN if recent else "#638493",
+                                     fill=GREEN if recent else "#7d939b",
                                      outline=TEXT if selected else "", width=2)
             canvas.tag_bind(dot, "<Button-1>", lambda _event, address=ip: self.select_radar_device(address))
 
@@ -1325,7 +1336,7 @@ class App(tk.Tk):
 
         router_r = min(w, h) * 0.12
         c.create_oval(cx - router_r, cy - router_r, cx + router_r, cy + router_r,
-                      fill="#0b2238", outline=BLUE, width=2)
+                      fill="#142126", outline=BLUE, width=2)
         c.create_text(cx, cy, text="Router", fill=TEXT, font=(FONT, 8, "bold"))
         c.create_text(cx, cy + 16, text=gw or 'unknown', fill=MUTED, font=(FONT, 7))
 
@@ -1340,7 +1351,7 @@ class App(tk.Tk):
             c.create_line(cx, cy, x, y, fill=GREEN if up else RED, width=2)
             node_r = 15
             c.create_oval(x - node_r, y - node_r, x + node_r, y + node_r,
-                          fill="#0b2238", outline=BLUE if up else RED, width=2)
+                          fill="#142126", outline=BLUE if up else RED, width=2)
             c.create_text(x, y - 2, text="PC", fill=TEXT, font=(FONT, 7, "bold"))
             c.create_text(x, y + 16, text=self.device_name(ip), fill=TEXT, font=(FONT, 7), justify="center")
             c.create_text(x, y + 28, text=ip, fill=MUTED, font=(FONT, 6), justify="center")
@@ -1426,16 +1437,16 @@ class App(tk.Tk):
         on = self.mon.running
         if "cap_buttons" in self.__dict__:
             for start, stop in self.cap_buttons:
-                start.config(state="disabled" if on else "normal", bg="#2a4a45" if on else GREEN,
-                            highlightbackground="#9ae6b4" if on else "#2d4b4d")
-                stop.config(state="normal" if on else "disabled", bg=RED if on else "#2a4a45",
-                            highlightbackground="#ffb1a8" if on else "#2d4b4d")
+                start.config(state="disabled" if on else "normal", bg="#263b37" if on else ACTIVE_BG,
+                            highlightbackground="#a4cdb7" if on else "#435b60")
+                stop.config(state="normal" if on else "disabled", bg=STOP_BG if on else "#263b37",
+                            highlightbackground="#d99899" if on else "#435b60")
         if "live_dot" in self.__dict__:
             self.live_dot.config(fg=GREEN if on else RED)
         if "live_status" in self.__dict__:
-            self.live_status.config(bg="#0d2541", highlightbackground="#2aa8ff" if on else "#1d4f7b")
+            self.live_status.config(bg="#202c32", highlightbackground="#61d4c3" if on else "#42575f")
         if "live_label" in self.__dict__:
-            self.live_label.config(fg="#dff9ff" if on else "#f4d7d7")
+            self.live_label.config(fg="#edf3f5" if on else "#f5d5d5")
         if "v_live" in self.__dict__:
             self.v_live.set(" Monitoring Active" if on else " Monitoring Stopped")
         if "status_msg" in self.__dict__:
@@ -1524,7 +1535,7 @@ class App(tk.Tk):
         self.v_uptime.set(f"Uptime: {secs // 3600:02d}:{secs % 3600 // 60:02d}:{secs % 60:02d}")
         n = s["alert_total"]
         self.v_alert_summary.set(f"{n:,} alerts this session" if n else "No alerts this session")
-        self.badge.config(text="99+" if n > 99 else str(n), bg=RED if n else "#2a4a45")
+        self.badge.config(text="99+" if n > 99 else str(n), bg=STOP_BG if n else "#263b37")
 
         for c in self.usage_canvases:
             if c.winfo_ismapped():
