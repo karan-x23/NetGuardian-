@@ -20,29 +20,37 @@
     </header>
     <p id="status" role="status"></p>
 
-    <section class="radar-panel" aria-labelledby="radar-title">
-      <div class="radar-copy">
-        <h2 id="radar-title">Device radar</h2>
-        <p id="radar-count"></p>
-        <label for="wifi-meter" id="wifi-label">Wi-Fi signal unavailable</label>
-        <meter id="wifi-meter" min="0" max="100" hidden></meter>
-        <p>Select a dot to open device details. Dot positions are illustrative.</p>
-      </div>
-      <div id="radar" class="radar" aria-label="Observed devices"></div>
-    </section>
+    <dl class="metrics">
+      <div><dt>Matching packets</dt><dd id="packets"></dd></div>
+      <div><dt>Traffic volume</dt><dd id="volume"></dd></div>
+      <div><dt>Destination addresses</dt><dd id="destinations"></dd></div>
+    </dl>
 
-    <section class="timeline-panel" aria-labelledby="timeline-title">
-      <div class="panel-header">
-        <div><h2 id="timeline-title">Traffic timeline</h2><p id="timeline-note"></p></div>
-        <div class="actions">
-          <button id="replay" type="button">Replay</button>
-          <label>Speed <select id="speed"><option value="1">1×</option><option value="2" selected>2×</option><option value="5">5×</option></select></label>
-          <button id="show-all" type="button">Show full session</button>
+    <div class="overview">
+      <section class="radar-panel" aria-labelledby="radar-title">
+        <div class="radar-copy">
+          <h2 id="radar-title">Device radar</h2>
+          <p id="radar-count"></p>
+          <label for="wifi-meter" id="wifi-label">Wi-Fi signal unavailable</label>
+          <meter id="wifi-meter" min="0" max="100" hidden></meter>
+          <p>Select a dot to open device details. Dot positions are illustrative.</p>
         </div>
-      </div>
-      <div id="timeline" class="timeline" aria-label="Filter by traffic interval"></div>
-      <div class="timeline-axis"><span id="time-start"></span><span id="time-end"></span></div>
-    </section>
+        <div id="radar" class="radar" aria-label="Observed devices"></div>
+      </section>
+
+      <section class="timeline-panel" aria-labelledby="timeline-title">
+        <div class="panel-header">
+          <div><h2 id="timeline-title">Traffic timeline</h2><p id="timeline-note"></p></div>
+          <div class="actions">
+            <button id="replay" type="button">Replay</button>
+            <label>Speed <select id="speed"><option value="1">1×</option><option value="2" selected>2×</option><option value="5">5×</option></select></label>
+            <button id="show-all" type="button">Show full session</button>
+          </div>
+        </div>
+        <div id="timeline" class="timeline" aria-label="Filter by traffic interval"></div>
+        <div class="timeline-axis"><span id="time-start"></span><span id="time-end"></span></div>
+      </section>
+    </div>
 
     <section class="filters" aria-label="Packet filters">
       <label>Search address or packet info<input id="search" type="search" placeholder="e.g. 192.0.2.10"></label>
@@ -53,12 +61,6 @@
     <div id="scope" class="scope" hidden>
       <span id="scope-text"></span><button id="clear-scope" type="button">Clear selection</button>
     </div>
-
-    <dl class="metrics">
-      <div><dt>Matching packets</dt><dd id="packets"></dd></div>
-      <div><dt>Traffic volume</dt><dd id="volume"></dd></div>
-      <div><dt>Destination addresses</dt><dd id="destinations"></dd></div>
-    </dl>
 
     <div class="panels">
       <section><h2>Protocol distribution</h2><ul id="distribution" class="bars"></ul></section>

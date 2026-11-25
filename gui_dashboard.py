@@ -535,29 +535,30 @@ class App(tk.Tk):
         hdr.pack(fill="x", padx=12, pady=(10, 8))
 
         brand = tk.Frame(hdr, bg="#151d21")
-        brand.pack(side="left", padx=(4, 8))
-        logo = tk.Canvas(brand, width=34, height=34, bg=BG, highlightthickness=0)
+        brand.pack(side="left", padx=(12, 18), pady=8)
+        logo = tk.Canvas(brand, width=34, height=34, bg=SIDE, highlightthickness=0)
         logo.pack(side="left")
         logo.create_oval(4, 4, 30, 30, fill="#202c32", outline="#61d4c3", width=2)
         logo.create_polygon(15, 9, 21, 15, 21, 22, 15, 28, 9, 22, 9, 15, fill="#61d4c3", outline="#61d4c3")
         logo.create_polygon(12, 16, 15, 13, 18, 16, 15, 19, fill="#edf3f5", outline="#edf3f5")
-        t = tk.Frame(brand, bg=BG)
+        t = tk.Frame(brand, bg=SIDE)
         t.pack(side="left", padx=(6, 0))
-        tk.Label(t, text=APP_NAME, fg=TEXT, bg=BG, font=(FONT, 18, "bold")).pack(anchor="w")
-        tk.Label(t, text="Network Monitor & Security Analyzer", fg="#a5b7bf", bg=BG,
+        tk.Label(t, text=APP_NAME, fg=TEXT, bg=SIDE, font=(FONT, 20, "bold")).pack(anchor="w")
+        tk.Label(t, text="Network Monitor", fg=MUTED, bg=SIDE,
                  font=(FONT, 9)).pack(anchor="w")
 
-        search = tk.Frame(hdr, bg="#10191d", highlightbackground="#42575f", highlightthickness=1)
-        search.pack(side="left", expand=True, fill="x", padx=(10, 12), pady=4)
-        tk.Label(search, text="🔍", bg="#10191d", fg="#a2ccc9", font=(FONT, 10)).pack(side="left", padx=(10, 6))
-        e = tk.Entry(search, bg="#10191d", fg=TEXT, relief="flat", insertbackground=TEXT,
-                     highlightthickness=0, width=36, font=(FONT, 10), justify="left")
-        e.insert(0, "Search devices, IPs, domains, ports...")
-        e.pack(side="left", fill="x", expand=True, padx=(0, 10), pady=7)
+        search = tk.Frame(hdr, bg=BG, highlightbackground=BORDER, highlightthickness=1)
+        search.pack(side="left", expand=True, fill="x", padx=(0, 12), pady=4)
+        tk.Label(search, text="Packet filter", bg=BG, fg=MUTED, font=(FONT, 9)).pack(side="left", padx=10)
+        entry = tk.Entry(search, textvariable=self.filter_var, bg=BG, fg=TEXT, relief="flat",
+                         insertbackground=TEXT, highlightthickness=0, width=16, font=(FONT, 10))
+        entry.pack(side="left", fill="x", expand=True, pady=7)
+        entry.bind("<Return>", lambda _event: self.refilter())
+        flat_button(search, "Apply", self.refilter, padx=10, pady=2).pack(side="right", padx=4)
 
         r = tk.Frame(hdr, bg="#151d21")
         r.pack(side="right", padx=(0, 10), pady=8)
-        flat_button(r, "Live web dashboard", self.open_live_dashboard).pack(side="left", padx=(0, 8))
+        flat_button(r, "Live web dashboard", self.open_live_dashboard, bg=ACTIVE_BG).pack(side="left", padx=(0, 8))
         live = tk.Frame(r, bg="#202c32", highlightbackground="#42575f", highlightthickness=1,
                         cursor="hand2")
         live.pack(anchor="e", pady=3, padx=(0, 8))
@@ -710,24 +711,22 @@ class App(tk.Tk):
         top.pack(fill="x", padx=12, pady=(8, 0))
         for txt, clr in (("Upload", PURPLE), ("Download", BLUE)):
             tk.Label(top, text=f"■ {txt}", bg=PANEL, fg=clr, font=(FONT, 9)).pack(side="right", padx=6)
-        heading(top, "🌐 Network Usage (Live)").pack(side="left")
+        heading(top, "Live Network Usage").pack(side="left")
         c = tk.Canvas(p, bg=PANEL, height=height, highlightthickness=0)
         c.pack(fill="both", expand=True, padx=8, pady=(4, 8))
         c.bind("<Configure>", lambda e, c=c: self.draw_usage(c))
         self.usage_canvases.append(c)
         return p
 
-    def stat_card(self, parent, col, icon, color, label, sub_colors):
+    def stat_card(self, parent, col, color, label, sub_colors):
         c = card(parent)
-        c.grid(row=0, column=col, sticky="nsew", padx=5, pady=0)
-        icon_box = tk.Frame(c, bg="#243139", highlightbackground="#435b63", highlightthickness=1)
-        icon_box.pack(side="left", padx=(10, 8), pady=10)
-        tk.Label(icon_box, text=icon, bg="#243139", fg=color, font=(FONT, 20)).pack(padx=12, pady=10)
+        c.grid(row=0, column=col, sticky="nsew", padx=5)
+        tk.Frame(c, bg=color, width=3).pack(side="left", fill="y")
         box = tk.Frame(c, bg=PANEL)
-        box.pack(side="left", fill="both", expand=True, pady=13)
-        tk.Label(box, text=label, bg=PANEL, fg=TEXT, font=(FONT, 10)).pack(anchor="w")
+        box.pack(side="left", fill="both", expand=True, padx=12, pady=9)
+        tk.Label(box, text=label, bg=PANEL, fg=MUTED, font=(FONT, 9)).pack(anchor="w")
         var = tk.StringVar(value="0")
-        tk.Label(box, textvariable=var, bg=PANEL, fg=TEXT, font=(FONT, 17, "bold")).pack(anchor="w")
+        tk.Label(box, textvariable=var, bg=PANEL, fg=TEXT, font=(FONT, 21, "bold")).pack(anchor="w")
         sub = tk.Frame(box, bg=PANEL)
         sub.pack(anchor="w")
         subs = []
@@ -758,11 +757,11 @@ class App(tk.Tk):
         # row 0: stat cards
         stats = row(0, [1] * 5)
         stats.rowconfigure(0, weight=0)
-        self.v_dev, (self.v_on, self.v_off) = self.stat_card(stats, 0, "🖥", BLUE, "Total Devices", [GREEN, RED])
-        self.v_pps, (self.v_pps_sub,) = self.stat_card(stats, 1, "📈", BLUE, "Packets / Second", [GREEN])
-        self.v_down, _ = self.stat_card(stats, 2, "⬇", BLUE, "Download Speed", [])
-        self.v_up, _ = self.stat_card(stats, 3, "⬆", PURPLE, "Upload Speed", [])
-        self.v_total, (self.v_tdown, self.v_tup) = self.stat_card(stats, 4, "🗄", BLUE, "Total Data (Session)",
+        self.v_dev, (self.v_on, self.v_off) = self.stat_card(stats, 0, BLUE, "Total Devices", [GREEN, RED])
+        self.v_pps, (self.v_pps_sub,) = self.stat_card(stats, 1, BLUE, "Packets / Second", [GREEN])
+        self.v_down, _ = self.stat_card(stats, 2, BLUE, "Download Speed", [])
+        self.v_up, _ = self.stat_card(stats, 3, PURPLE, "Upload Speed", [])
+        self.v_total, (self.v_tdown, self.v_tup) = self.stat_card(stats, 4, BLUE, "Total Data (Session)",
                                                                   [BLUE, PURPLE])
 
         # row 1: usage chart, protocol donut, top IPs
@@ -1231,7 +1230,6 @@ class App(tk.Tk):
 
     def draw_network_view(self):
         if self.network_view.get() == "Network Map":
-            self.radar_caption.configure(text="")
             self.draw_map()
             return
         canvas = self.map
@@ -1241,12 +1239,7 @@ class App(tk.Tk):
         if radius < 16:
             return
 
-        devices = dict(self.snap["devices"])
-        for (ip, mac), observed in self.discovery_devices.items():
-            timestamp = datetime.fromisoformat(observed.replace("Z", "+00:00")).timestamp()
-            current = devices.get(ip, {})
-            devices[ip] = {"mac": mac or current.get("mac", ""),
-                           "last_seen": max(timestamp, current.get("last_seen", 0))}
+        devices = self.observed_devices()
         devices.pop(self.mon.local_ip, None)
         # Keep existing targets in their slots as new addresses appear.
         self.radar_slots = [ip if ip in devices else None for ip in self.radar_slots[:12]]
@@ -1316,45 +1309,74 @@ class App(tk.Tk):
             detail = "Select a dot or use ← / →  ·  schematic layout"
         self.radar_caption.configure(text=f"{status}{quality}\n{detail}")
 
+    def observed_devices(self):
+        devices = dict(self.snap["devices"])
+        for (ip, mac), observed in self.discovery_devices.items():
+            timestamp = datetime.fromisoformat(observed.replace("Z", "+00:00")).timestamp()
+            current = devices.get(ip, {})
+            devices[ip] = {"mac": mac or current.get("mac", ""),
+                           "last_seen": max(timestamp, current.get("last_seen", 0))}
+        return devices
+
     def draw_map(self):
-        c = self.map
-        c.delete("all")
-        w, h = c.winfo_width(), c.winfo_height()
-        if w < 80 or h < 60:
+        canvas = self.map
+        canvas.delete("all")
+        width, height = canvas.winfo_width(), canvas.winfo_height()
+        adapter = (self.adapters or {}).get(self.adapter_box.get())
+        host = str(adapter.address) if adapter else self.mon.local_ip
+        gateway = self.mon.gateway
+        scope = "Capture interface"
+        if adapter:
+            scope = str(adapter.network)
+            routes = [(metric, address) for destination, mask, address, identifier, _, metric in conf.route.routes
+                      if destination == 0 and mask == 0 and identifier == adapter.interface_id
+                      and address != "0.0.0.0" and ipaddress.IPv4Address(address) in adapter.network]
+            gateway = min(routes)[1] if routes else ""
+        if width < 150 or height < 92:
+            self.radar_caption.configure(text=f"{scope} · Open Devices for the full inventory")
             return
+
         now = time.time()
-        gw = self.mon.gateway
-        nodes = [(ip, d) for ip, d in sorted(self.snap["devices"].items(),
-                                             key=lambda kv: kv[1]["last_seen"], reverse=True) if ip != gw][:5]
-        layout = map_layout(w, h, len(nodes) or 1)
-        cx = layout["cx"]
-        cy = layout["cy"]
+        peers = [(ip, device) for ip, device in self.observed_devices().items()
+                 if ip not in (gateway, host)
+                 and (adapter is None or ipaddress.IPv4Address(ip) in adapter.network)]
+        peers.sort(key=lambda item: (-item[1]["last_seen"], ipaddress.IPv4Address(item[0])))
+        shown = peers[:max(1, (width - 12) // 91)]
+        card_height = 29
+        center = width / 2
+        top_y = 20
+        bottom_y = height - 19
 
-        c.create_line(cx, 12, cx, 46, fill=BLUE, width=2)
-        c.create_oval(cx - 18, 2, cx + 18, 34, outline=BLUE, width=2, fill="")
-        c.create_text(cx, 18, text="Internet", fill=TEXT, font=(FONT, 8))
+        def node(x, y, title, address, accent, box_width):
+            half = box_width / 2
+            canvas.create_rectangle(x - half, y - card_height / 2, x + half, y + card_height / 2,
+                                    fill=PANEL_ALT, outline=BORDER)
+            canvas.create_rectangle(x - half, y - card_height / 2, x - half + 2, y + card_height / 2,
+                                    fill=accent, outline="")
+            canvas.create_text(x, y - 5, text=title, fill=TEXT, font=(FONT, 8, "bold"))
+            canvas.create_text(x, y + 6, text=address, fill=MUTED, font=(FONT, 8))
 
-        router_r = min(w, h) * 0.12
-        c.create_oval(cx - router_r, cy - router_r, cx + router_r, cy + router_r,
-                      fill="#142126", outline=BLUE, width=2)
-        c.create_text(cx, cy, text="Router", fill=TEXT, font=(FONT, 8, "bold"))
-        c.create_text(cx, cy + 16, text=gw or 'unknown', fill=MUTED, font=(FONT, 7))
-
-        if not nodes:
-            c.create_text(cx, h - 24, text="No devices seen yet", fill=MUTED, font=(FONT, 9))
-            return
-
-        for i, (ip, d) in enumerate(nodes):
-            x = layout["x_positions"][i]
-            y = layout["y_positions"][i]
-            up = now - d["last_seen"] <= ONLINE_WINDOW
-            c.create_line(cx, cy, x, y, fill=GREEN if up else RED, width=2)
-            node_r = 15
-            c.create_oval(x - node_r, y - node_r, x + node_r, y + node_r,
-                          fill="#142126", outline=BLUE if up else RED, width=2)
-            c.create_text(x, y - 2, text="PC", fill=TEXT, font=(FONT, 7, "bold"))
-            c.create_text(x, y + 16, text=self.device_name(ip), fill=TEXT, font=(FONT, 7), justify="center")
-            c.create_text(x, y + 28, text=ip, fill=MUTED, font=(FONT, 6), justify="center")
+        card_width = min(117, (width - 30) / 2)
+        host_x, gateway_x = width * .26, width * .74
+        node(host_x, top_y, "This computer", host if host != "0.0.0.0" else "IP unavailable", BLUE, card_width)
+        node(gateway_x, top_y, "Default gateway", gateway or "Unavailable", GREEN if gateway else GRAY, card_width)
+        line_y = (top_y + bottom_y) / 2
+        canvas.create_line(host_x, top_y + card_height / 2, host_x, line_y, fill=BORDER, dash=(3, 2))
+        if gateway:
+            canvas.create_line(gateway_x, top_y + card_height / 2, gateway_x, line_y, fill=BORDER, dash=(3, 2))
+        canvas.create_line(12, line_y, width - 12, line_y, fill=BORDER)
+        canvas.create_rectangle(center - 58, line_y - 8, center + 58, line_y + 8, fill=PANEL, outline="")
+        canvas.create_text(center, line_y, text=scope, fill=MUTED, font=(FONT, 8))
+        for index, (ip, device) in enumerate(shown):
+            x = (index + .5) * width / len(shown)
+            recent = now - device["last_seen"] <= ONLINE_WINDOW
+            canvas.create_line(x, line_y, x, bottom_y - card_height / 2, fill=BORDER, dash=(3, 2))
+            node(x, bottom_y, "Recently seen" if recent else "Previously seen", ip,
+                 GREEN if recent else GRAY, min(108, width / len(shown) - 8))
+        count = f"{len(shown)} of {len(peers)} observed peers" if len(shown) < len(peers) else f"{len(shown)} observed peers"
+        if not shown:
+            canvas.create_text(center, bottom_y, text="No peers observed", fill=MUTED, font=(FONT, 8))
+        self.radar_caption.configure(text=f"{count} · Logical network view")
 
     def device_name(self, ip):
         if ip == self.mon.local_ip:

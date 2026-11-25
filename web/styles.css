@@ -117,3 +117,42 @@ h3 { font-size: 1rem; }
   .radar-panel { grid-template-columns: 1fr; }
   .radar { justify-self: center; }
 }
+
+header { align-items: center; }
+header .actions { justify-content: flex-end; }
+h1 { font-size: clamp(2rem, 4vw, 3rem); }
+#status {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  margin: 1rem 0;
+  padding: .7rem .85rem;
+  border: 1px solid var(--border);
+  border-radius: .55rem;
+  background: #151d21;
+  font-size: .9rem;
+}
+#status::before { content: ""; flex: 0 0 .5rem; height: .5rem; border-radius: 50%; background: var(--muted); }
+#status[data-state="active"]::before { background: #8bdcae; }
+#status[data-state="error"]::before { background: #ff9c9e; }
+.metrics { margin: .85rem 0; }
+.metrics > div { border-top: 2px solid #528f89; }
+.overview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: .85rem; margin-bottom: .85rem; }
+.overview > section { min-width: 0; margin: 0; }
+.overview .radar-panel { padding: 1rem; grid-template-columns: minmax(0, 1fr) auto; }
+.overview .radar { width: clamp(8rem, 15vw, 12rem); }
+.overview .radar-copy h2 { font-size: 1.2rem; }
+.overview .radar-copy p, .overview .radar-copy label { font-size: .875rem; }
+.overview .timeline { height: 7rem; }
+#download { background: #28594d; border-color: #4d8c81; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+.table-wrap tbody tr:nth-child(even) { background: #202a2f; }
+@media (max-width: 850px) {
+  .overview { grid-template-columns: 1fr; }
+  header .actions { justify-content: flex-start; }
+}
+@media print {
+  #status, .table-wrap tbody tr:nth-child(even) { background: white; }
+  .overview { display: block; }
+  .overview > section { margin-bottom: .85rem; }
+}

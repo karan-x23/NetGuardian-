@@ -434,6 +434,7 @@ function load(rows, label) {
   get("search").value = "";
   get("protocol").replaceChildren(new Option("All protocols", ""),
     ...countBy(rows, "protocol").map(([name]) => new Option(name, name)));
+  get("status").dataset.state = "idle";
   get("status").textContent = `${label} · ${number.format(rows.length)} packets`;
   render();
 }
@@ -491,12 +492,14 @@ async function pollLive() {
     wifiReading = data.wifi;
     loadDevices(activity, activity.length ? "Live inventory and observed DNS requests" : "No devices observed yet.");
     source = "Live capture";
+    get("status").dataset.state = data.running ? "active" : "idle";
     get("status").textContent = `${data.running ? "Capture running" : "Capture stopped · Start capture in the desktop app"} · ${number.format(packets.length)} recent packets · ${number.format(data.total)} captured`;
     render();
   } catch (error) {
     if (liveMode && generation === liveGeneration) {
       wifiReading = null;
       renderRadar();
+      get("status").dataset.state = "error";
       get("status").textContent = "Live feed disconnected. Displayed data may be stale. Reconnecting…";
     }
   } finally {
