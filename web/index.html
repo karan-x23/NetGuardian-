@@ -12,6 +12,7 @@
     <header>
       <div><p class="brand">NETGUARDIAN</p><h1>Traffic Explorer</h1></div>
       <div class="actions">
+        <a class="tool-link" href="http-history.html">HTTP History</a>
         <label class="upload">Import packet CSV <input id="file" type="file" accept=".csv,text/csv"></label>
         <button id="return-live" type="button" hidden>Return to live</button>
         <button id="download" type="button">Download summary</button>
@@ -73,6 +74,11 @@
         <label class="upload">Import device activity CSV <input id="device-file" type="file" accept=".csv,text/csv"></label>
       </div>
       <label class="device-picker">Device <select id="device"></select></label>
+      <form id="device-label-form" class="actions">
+        <label>Device label <input id="device-label" maxlength="80" placeholder="e.g. Office laptop"></label>
+        <button id="save-device-label" type="submit">Save label</button>
+        <button id="inspect-device" type="button">Show device packets</button>
+      </form>
       <dl class="device-facts" id="device-facts"></dl>
       <h3>Observed domains and services</h3>
       <p>Domain requests can come from background apps. Service labels come from the imported records.</p>
@@ -84,7 +90,7 @@
       </div>
     </section>
 
-    <section class="packet-panel">
+    <section class="packet-panel" id="packet-results" tabindex="-1">
       <h2>Packet details</h2><p id="row-count"></p>
       <div class="table-wrap" tabindex="0" aria-label="Scrollable packet table">
         <table>

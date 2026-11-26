@@ -13,6 +13,9 @@ class LiveDashboard:
         web = Path(__file__).resolve().parent.parent / "web"
         assets = {
             "": ("text/html; charset=utf-8", (web / "index.html").read_bytes()),
+            "index.html": ("text/html; charset=utf-8", (web / "index.html").read_bytes()),
+            "http-history.html": ("text/html; charset=utf-8", (web / "http-history.html").read_bytes()),
+            "http-history.js": ("text/javascript; charset=utf-8", (web / "http-history.js").read_bytes()),
             "dashboard.js": ("text/javascript; charset=utf-8", (web / "dashboard.js").read_bytes()),
             "styles.css": ("text/css; charset=utf-8", (web / "styles.css").read_bytes()),
         }

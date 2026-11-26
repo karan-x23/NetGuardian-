@@ -156,3 +156,29 @@ button:hover:not(:disabled) { border-color: var(--accent); }
   .overview { display: block; }
   .overview > section { margin-bottom: .85rem; }
 }
+
+#device-label-form { margin-top: .75rem; }
+#device-label-form label { display: grid; gap: .35rem; }
+
+.tool-link {
+  color: var(--accent);
+  padding: .55rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: .45rem;
+  text-decoration: none;
+}
+.tool-link:hover { border-color: var(--accent); }
+.har-request {
+  overflow-wrap: anywhere;
+  text-align: left;
+  color: var(--accent);
+}
+#har-inspector details { margin-bottom: .55rem; }
+#har-inspector summary { cursor: pointer; }
+#har-inspector pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 18rem;
+  overflow: auto;
+}
+#har-summary { overflow-wrap: anywhere; }

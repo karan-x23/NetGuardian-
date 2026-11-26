@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetGuardian | HTTP History</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="http-history.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <div><p class="brand">NETGUARDIAN</p><h1>HTTP History</h1></div>
+      <div class="actions">
+        <a class="tool-link" href="index.html">Traffic Explorer</a>
+        <label class="upload">Import HAR <input id="har-file" type="file" accept=".har,application/json"></label>
+        <button id="har-clear" type="button" disabled>Clear history</button>
+      </div>
+    </header>
+    <p id="status" role="status">Import a HAR from your browser’s Network panel. Files are read locally.</p>
+    <section class="filters" aria-label="HTTP request filters">
+      <label>URL or host <input id="har-search" type="search"></label>
+      <label>Method <select id="har-method"><option value="">All methods</option></select></label>
+      <label>Status <select id="har-status">
+        <option value="">All statuses</option><option value="2">2xx</option><option value="3">3xx</option>
+        <option value="4">4xx</option><option value="5">5xx</option><option value="0">No response</option>
+      </select></label>
+    </section>
+    <section class="packet-panel" aria-labelledby="har-requests">
+      <h2 id="har-requests">Requests</h2>
+      <p id="har-count"></p>
+      <div class="table-wrap" tabindex="0" aria-label="HTTP requests">
+        <table>
+          <thead><tr><th scope="col">Method</th><th scope="col">Status</th><th scope="col">Time</th><th scope="col">URL</th></tr></thead>
+          <tbody id="har-rows"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="packet-panel" id="har-inspector" tabindex="-1" aria-labelledby="har-title" hidden>
+      <h2 id="har-title">Request details</h2>
+      <p id="har-summary"></p>
+      <details open><summary>Request headers</summary><pre id="har-request-headers"></pre></details>
+      <details><summary>Request body</summary><pre id="har-request-body"></pre></details>
+      <details><summary>Response headers</summary><pre id="har-response-headers"></pre></details>
+      <details><summary>Response body</summary><pre id="har-response-body"></pre></details>
+      <details><summary>Timings</summary><pre id="har-timings"></pre></details>
+    </section>
+  </main>
+</body>
+</html>

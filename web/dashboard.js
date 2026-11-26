@@ -16,6 +16,10 @@ let bucketWidth = 1000;
 let timedCount = 0;
 let deviceImportId = 0;
 let devices = new Map();
+const deviceLabels = new Map();
+let deviceFilter = null;
+let domainFilter = null;
+let editingDevice = "";
 let wifiReading = null;
 const liveAvailable = location.protocol === "http:" && location.hostname === "127.0.0.1";
 let liveMode = liveAvailable;
@@ -190,6 +194,13 @@ function element(tag, text) {
   return node;
 }
 
+function observedDomain(packet) {
+  const prefix = "Standard query ";
+  if (packet.protocol !== "DNS" || !packet.info.startsWith(prefix) ||
+      packet.info.startsWith(prefix + "response ")) return "";
+  return packet.info.slice(prefix.length).trim().toLowerCase().replace(/\.$/, "");
+}
+
 function render() {
   const query = get("search").value.trim().toLowerCase();
   const protocol = get("protocol").value;
@@ -198,6 +209,8 @@ function render() {
   const available = packets.filter((packet) =>
     (playhead === null || (packet.elapsed !== null && packet.elapsed <= playhead)) &&
     (!protocol || packet.protocol === protocol) &&
+    (!deviceFilter || packet.source === deviceFilter || packet.destination === deviceFilter) &&
+    (!domainFilter || (packet.source === deviceFilter && observedDomain(packet) === domainFilter)) &&
     [packet.source, packet.destination, packet.info].some((value) => value.toLowerCase().includes(query))
   );
   renderTimeline(available.filter((packet) => !destinationFilter || packet.destination === destinationFilter));
@@ -207,6 +220,8 @@ function render() {
   const scopes = [];
   if (selectedBucket !== null) scopes.push(intervalLabel(selectedBucket));
   if (destinationFilter) scopes.push(destinationFilter);
+  if (deviceFilter) scopes.push(deviceLabels.get(deviceFilter) || devices.get(deviceFilter)?.name || deviceFilter);
+  if (domainFilter) scopes.push(domainFilter);
   get("scope").hidden = scopes.length === 0;
   get("scope-text").textContent = scopes.join(" · ");
   const volume = matching.reduce((total, packet) => total + packet.length, 0);
@@ -259,7 +274,7 @@ function render() {
     }
     return row;
   }));
-  summary = { source, filters: { query, protocol, threshold, destination: destinationFilter,
+  summary = { source, filters: { query, protocol, threshold, destination: destinationFilter, device: deviceFilter, domain: domainFilter,
     intervalSeconds: selectedBucket === null ? null : [selectedBucket * bucketWidth / 1000, (selectedBucket + 1) * bucketWidth / 1000],
     replayElapsedSeconds: playhead === null ? null : playhead / 1000 }, packets: matching.length, bytes: volume,
     destinationCount: destinations.length, protocols: Object.fromEntries(protocols),
@@ -314,7 +329,8 @@ function loadDevices(records, label) {
   }
   const options = document.createDocumentFragment();
   for (const device of devices.values()) {
-    options.append(new Option(device.name ? `${device.name} · ${device.ip}` : device.ip, device.ip));
+    const label = deviceLabels.get(device.ip) || device.name;
+    options.append(new Option(label ? `${label} · ${device.ip}` : device.ip, device.ip));
   }
   picker.replaceChildren(options);
   picker.disabled = !devices.size;
@@ -355,7 +371,8 @@ function renderRadar() {
     const radius = [20, 32, 43][ring];
     button.style.left = `${50 + radius * Math.cos(angle)}%`;
     button.style.top = `${50 + radius * Math.sin(angle)}%`;
-    button.title = device.name ? `${device.name} · ${device.ip}` : device.ip;
+    const label = deviceLabels.get(device.ip) || device.name;
+    button.title = label ? `${label} · ${device.ip}` : device.ip;
     button.setAttribute("aria-label", button.title);
     button.setAttribute("aria-pressed", String(selected === device.ip));
   });
@@ -377,9 +394,16 @@ function renderDevice() {
   const activity = get("device-activity");
   facts.replaceChildren();
   activity.replaceChildren();
+  get("device-label").disabled = !device;
+  get("save-device-label").disabled = !device;
+  get("inspect-device").disabled = !device;
+  if (editingDevice !== (device?.ip ?? "")) {
+    editingDevice = device?.ip ?? "";
+    get("device-label").value = deviceLabels.get(editingDevice) || "";
+  }
   if (!device) return;
   const fields = [
-    ["Name", device.name || "Unknown"], ["Type", device.type || "Unknown"],
+    ["Name", deviceLabels.get(device.ip) || device.name || "Unknown"], ["Type", device.type || "Unknown"],
     ["IP address", device.ip], ["MAC address", device.mac || "Unavailable"],
     ["Last observed", device.last || "Unavailable"], ["Bytes in packet session", number.format(device.bytes)],
   ];
@@ -391,7 +415,14 @@ function renderDevice() {
   const groups = [...device.activity.values()].sort((a, b) => b.count - a.count || a.domain.localeCompare(b.domain));
   for (const group of groups.slice(0, 100)) {
     const row = element("tr");
-    for (const value of [group.domain, group.service || "Unknown", number.format(group.count), group.last]) {
+    const domain = element("td");
+    const inspect = element("button", group.domain);
+    inspect.type = "button";
+    inspect.title = "Show captured DNS requests for this device";
+    inspect.addEventListener("click", () => applyDeviceScope(device.ip, group.domain));
+    domain.append(inspect);
+    row.append(domain);
+    for (const value of [group.service || "Unknown", number.format(group.count), group.last]) {
       row.append(element("td", value));
     }
     activity.append(row);
@@ -405,6 +436,33 @@ function renderDevice() {
   }
 }
 
+function applyDeviceScope(ip, domain = null) {
+  stopReplay();
+  playhead = null;
+  selectedBucket = null;
+  destinationFilter = null;
+  deviceFilter = ip;
+  domainFilter = domain;
+  get("search").value = "";
+  get("protocol").value = "";
+  render();
+  get("packet-results").focus();
+}
+
+get("device-label-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const ip = get("device").value;
+  const device = devices.get(ip);
+  if (!device) return;
+  const label = get("device-label").value.trim();
+  if (label) deviceLabels.set(ip, label);
+  else deviceLabels.delete(ip);
+  get("device").selectedOptions[0].textContent = label || device.name ?
+    `${label || device.name} · ${ip}` : ip;
+  renderDevice();
+  render();
+});
+get("inspect-device").addEventListener("click", () => applyDeviceScope(get("device").value));
 get("device").addEventListener("change", renderDevice);
 get("device-file").addEventListener("change", async (event) => {
   const [file] = event.target.files;
@@ -422,6 +480,9 @@ get("device-file").addEventListener("change", async (event) => {
 
 function load(rows, label) {
   deviceImportId++;
+  deviceLabels.clear();
+  deviceFilter = null;
+  domainFilter = null;
   stopReplay();
   playhead = null;
   selectedBucket = null;
@@ -481,13 +542,10 @@ async function pollLive() {
     }
     const activity = [...data.devices];
     const known = new Set(data.devices.map((device) => device.ip));
-    const prefix = "Standard query ";
     for (const packet of packets) {
-      if (known.has(packet.source) && packet.protocol === "DNS" &&
-          packet.info.startsWith(prefix) && !packet.info.startsWith(prefix + "response ")) {
-        const domain = packet.info.slice(prefix.length).trim().toLowerCase();
-        if (domain) activity.push({ ip: packet.source, domain, service: "", timestamp: packet.time });
-      }
+      if (!known.has(packet.source)) continue;
+      const domain = observedDomain(packet);
+      if (domain) activity.push({ ip: packet.source, domain, service: "", timestamp: packet.time });
     }
     wifiReading = data.wifi;
     loadDevices(activity, activity.length ? "Live inventory and observed DNS requests" : "No devices observed yet.");
@@ -528,6 +586,8 @@ get("show-all").addEventListener("click", () => {
 get("clear-scope").addEventListener("click", () => {
   selectedBucket = null;
   destinationFilter = null;
+  deviceFilter = null;
+  domainFilter = null;
   render();
   get("search").focus();
 });

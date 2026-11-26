@@ -170,3 +170,7 @@ Timestamp,IP,Name,MAC,Type,Domain,Service
 ```
 
 Each domain row represents one observed request. Domain records may include background traffic. Service and device-type labels come from the imported CSV. Traffic Explorer processes the data locally.
+
+## HTTP History
+
+In your browser’s DevTools, open **Network** and export a HAR from your own browser session or test app. Open **HTTP History** in Traffic Explorer or open `web/http-history.html` directly. Import the HAR, filter by URL, method or status, and select a request to inspect its recorded headers, bodies and timing. Body previews depend on what the browser saved. The viewer reads the file locally and makes no requests to recorded URLs. HAR files can include sensitive headers or body content, so keep them private.
