@@ -110,6 +110,12 @@ NetGuardian is currently a working prototype focused on live monitoring, packet 
 - Behavior can vary by system, OS, and network conditions
 - This is not a full enterprise-grade IDS/IPS platform
 
+## Select a capture adapter
+
+Open **Packet Capture** and choose your Wi-Fi adapter from **Capture adapter**. Leave **Capture filter** blank for available traffic, or enter a libpcap filter such as `port 53` to keep only matching packets. Press **Start**. Stop capture before switching adapters or capture filters. The separate display filter searches packets already recorded.
+
+On Windows, install Npcap and use an administrator terminal if packet access requires it. Capture is passive and limited to traffic the selected adapter delivers. HTTPS request bodies remain encrypted at the adapter level.
+
 ## Packet inspector
 
 Open **Packet Capture** and select a row to view its frame summary and expandable Ethernet, ARP, IPv4, TCP, UDP, ICMP, or DNS fields when available. The inspector keeps headers for the latest 5,000 captured packets in memory. Use the filter to match a protocol, an IP address, or a source or destination port, for example `tcp port:443` or `192.168.1.4 udp port:53`. Press Enter to apply it to displayed rows.
@@ -179,6 +185,6 @@ In your browser’s DevTools, open **Network** and export a HAR from your own br
 
 1. Open `chrome://extensions` (Chrome) or `edge://extensions` (Edge). Enable **Developer mode**, choose **Load unpacked**, and select NetGuardian’s `web` folder.
 2. Open your own site or test app and press **F12**. Select the **NetGuardian** DevTools tab (look under **»** if it is hidden).
-3. Click **Start recording**, then reload or interact with the inspected tab. Finished requests appear automatically. Select one to view available headers, request and response bodies, and timings. Click **Stop recording** when finished.
+3. Recording starts when the **NetGuardian** panel opens. Reload or interact with the inspected tab to see completed requests appear automatically. Select one to view available headers, request and response bodies, and timings. Click **Stop recording** when finished.
 
 The DevTools panel keeps the last 300 completed requests in memory. It reads the inspected tab’s recorded requests and does not alter them. Requests without a body, responses whose content is unavailable to DevTools, and phases the browser could not time may have empty details. HAR import is still available.

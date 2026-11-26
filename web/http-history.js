@@ -175,23 +175,25 @@ function stopRecording() {
   byId("status").textContent = `Recording stopped · ${entries.length} requests retained`;
 }
 
+function startRecording() {
+  importGeneration++;
+  loadHistory([]);
+  recording = true;
+  network.onRequestFinished.addListener(recordFinished);
+  recordButton.textContent = "Stop recording";
+  byId("status").textContent = "Recording this tab · reload or interact with the page · latest 300 requests retained";
+}
+
 if (network?.onRequestFinished) {
   byId("traffic-link").hidden = true;
   recordButton.hidden = false;
-  byId("status").textContent = "Start recording, then reload or use the inspected tab.";
   recordButton.addEventListener("click", () => {
-    if (recording) {
-      stopRecording();
-      return;
-    }
-    importGeneration++;
-    loadHistory([]);
-    recording = true;
-    network.onRequestFinished.addListener(recordFinished);
-    recordButton.textContent = "Stop recording";
-    byId("status").textContent = "Recording completed requests from the inspected tab · latest 300 retained";
+    if (recording) stopRecording();
+    else startRecording();
   });
+  startRecording();
+} else {
+  renderHistory();
 }
 
 for (const input of [search, method, status]) input.addEventListener("input", renderHistory);
-renderHistory();

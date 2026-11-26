@@ -32,6 +32,7 @@ LOG_FILE = "traffic_log.csv"
 ALERT_THRESHOLD = 50       # packets on one port before an alert is raised
 HIST = 60                  # seconds of history in the usage chart
 ONLINE_WINDOW = 60         # device counts as "Online" if seen in the last N seconds
+DEFAULT_CAPTURE_ADAPTER = "System default"
 MAX_ROWS = 5000            # packets kept in memory for Export
 
 # ---------- dashboard palette ----------
@@ -268,10 +269,26 @@ class TrafficMonitor:
         self._log_retry_at = 0
 
     # ---------- control ----------
-    def start(self):
+    def start(self, interface=None, capture_filter=""):
         if self.running:
             return
-        self.sniffer = AsyncSniffer(prn=self.capture, store=False)
+        options = {"prn": self.capture, "store": False, "promisc": False}
+        if interface is not None:
+            options["iface"] = interface
+        if capture_filter:
+            options["filter"] = capture_filter
+        selected = interface if interface is not None else conf.iface
+        self.iface = getattr(selected, "name", None) or str(selected)
+        if interface is None:
+            self.local_ip = local_ip()
+            self.gateway = gateway_ip()
+        else:
+            self.local_ip = getattr(interface, "ip", None) or "0.0.0.0"
+            default_routes = [(metric, gateway) for destination, mask, gateway, identifier, _, metric in conf.route.routes
+                              if destination == 0 and mask == 0 and gateway != "0.0.0.0"
+                              and identifier == interface.network_name]
+            self.gateway = min(default_routes)[1] if default_routes else ""
+        self.sniffer = AsyncSniffer(**options)
         self.sniffer.start()
         self.running = True
 
@@ -480,6 +497,9 @@ class App(tk.Tk):
         self.t0 = time.time()
         self.rows = deque(maxlen=MAX_ROWS)      # captured packets, for Export / re-filtering
         self.pkt_trees, self.usage_canvases, self.cap_buttons = [], [], []
+        self.capture_interfaces = {}
+        self.capture_adapter = tk.StringVar(value=DEFAULT_CAPTURE_ADAPTER)
+        self.capture_filter = tk.StringVar()
         self.filter_var = tk.StringVar()
         self.pages, self.current = {}, "Dashboard"
         self.err_shown = False
@@ -714,6 +734,8 @@ class App(tk.Tk):
             tk.Label(ctl, textvariable=self.v_cap, bg=PANEL, fg=BLUE, font=(FONT, 9)).pack(side="right", padx=14)
             tk.Label(ctl, text="Captured:", bg=PANEL, fg=TEXT, font=(FONT, 9)).pack(side="right")
             self.filter_entry(ctl)
+        if inspect:
+            self.build_capture_source(p)
         table_area = tk.Frame(p, bg=PANEL)
         table_area.pack(fill="both", expand=True, padx=8, pady=(0, 8))
         table_area.columnconfigure(0, weight=1)
@@ -963,6 +985,8 @@ class App(tk.Tk):
                     if len(new_labels) == 1 and not self.adapter_prompt_open:
                         self.adapter_box.set(next(iter(new_labels)))
                         self.after_idle(self.request_discovery)
+        if not self.mon.running:
+            self.refresh_capture_sources()
         if self.current in ("Dashboard", "Devices") or self.live_dashboard is not None:
             self.refresh_wifi_signal()
         self.after(3000, self.refresh_adapters)
@@ -1091,6 +1115,29 @@ class App(tk.Tk):
         f.columnconfigure(0, weight=1)
         f.rowconfigure(0, weight=1)
         self.packet_panel(f, "Packet Capture", inspect=True).grid(row=0, column=0, sticky="nsew", padx=5, pady=4)
+
+    def build_capture_source(self, parent):
+        controls = tk.Frame(parent, bg=PANEL)
+        controls.pack(fill="x", padx=12, pady=(0, 8))
+        tk.Label(controls, text="Capture adapter", bg=PANEL, fg=TEXT).pack(side="left")
+        self.capture_adapter_box = ttk.Combobox(controls, textvariable=self.capture_adapter,
+                                               state="readonly", width=30)
+        self.capture_adapter_box.pack(side="left", padx=(8, 14))
+        tk.Label(controls, text="Capture filter (optional)", bg=PANEL, fg=TEXT).pack(side="left")
+        self.capture_filter_entry = ttk.Entry(controls, textvariable=self.capture_filter, width=18)
+        self.capture_filter_entry.pack(side="left", padx=8)
+        tk.Label(controls, text="e.g. port 53 · applies on Start", bg=PANEL, fg=MUTED).pack(side="left")
+        self.refresh_capture_sources()
+
+    def refresh_capture_sources(self):
+        by_label = {}
+        for interface in conf.ifaces.values():
+            label = interface.name
+            if label in by_label or label == DEFAULT_CAPTURE_ADAPTER:
+                label = f"{label} · {interface.network_name}"
+            by_label[label] = interface
+        self.capture_interfaces = by_label
+        self.capture_adapter_box.configure(values=(DEFAULT_CAPTURE_ADAPTER, *sorted(by_label)))
 
     def open_capture_file(self):
         path = filedialog.askopenfilename(parent=self, filetypes=[
@@ -1726,18 +1773,30 @@ class App(tk.Tk):
         self.set_capture(not self.mon.running)
 
     def set_capture(self, on):
-        if on:
+        if on and not self.mon.running:
             self.err_shown = False
             try:
-                self.mon.start()
+                if "capture_adapter" in self.__dict__:
+                    label = self.capture_adapter.get()
+                    capture_filter = self.capture_filter.get().strip()
+                    if label != DEFAULT_CAPTURE_ADAPTER and label not in self.capture_interfaces:
+                        messagebox.showerror("Capture Error", "Selected adapter is unavailable. Select a connected adapter.",
+                                             parent=self)
+                        return
+                    self.mon.start(self.capture_interfaces.get(label), capture_filter)
+                else:
+                    self.mon.start()
             except Exception as e:
                 messagebox.showerror("Capture Error", f"Could not start packet capture.\n\n{e}\n\n{NO_CAPTURE_HINT}")
-        else:
+        elif not on:
             self.mon.stop()
         self.refresh_capture_ui()
 
     def refresh_capture_ui(self):
         on = self.mon.running
+        if "capture_adapter_box" in self.__dict__:
+            self.capture_adapter_box.configure(state="disabled" if on else "readonly")
+            self.capture_filter_entry.configure(state="disabled" if on else "normal")
         if "cap_buttons" in self.__dict__:
             for start, stop in self.cap_buttons:
                 start.config(state="disabled" if on else "normal", bg="#465570" if on else ACTIVE_BG,
@@ -1753,7 +1812,8 @@ class App(tk.Tk):
         if "v_live" in self.__dict__:
             self.v_live.set(" Monitoring Active" if on else " Monitoring Stopped")
         if "status_msg" in self.__dict__:
-            self.status_msg.set("Capturing packets..." if on else "Stopped")
+            self.status_msg.set(f"Capturing on {self.mon.iface}" if on and "capture_adapter_box" in self.__dict__ else
+                                "Capturing packets..." if on else "Stopped")
 
     def check_sniffer(self):
         """The sniffer runs in its own thread, so a permission error only shows up here."""
