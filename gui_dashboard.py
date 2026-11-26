@@ -727,6 +727,7 @@ class App(tk.Tk):
         tree.configure(yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
         self.pkt_trees.append(tree)
         if inspect:
+            self.capture_tree = tree
             self.build_packet_inspector(p, tree)
         return p
 
@@ -766,8 +767,8 @@ class App(tk.Tk):
     # ============================================================
     def page_dashboard(self, main):
         main.columnconfigure(0, weight=1)
-        main.rowconfigure(1, weight=5, uniform="dashboard")
-        main.rowconfigure(2, weight=4, uniform="dashboard")
+        main.rowconfigure(2, weight=5, uniform="dashboard")
+        main.rowconfigure(3, weight=4, uniform="dashboard")
         self.v_cap = tk.StringVar(value="0 packets")
 
         def row(index, weights):
@@ -778,8 +779,18 @@ class App(tk.Tk):
                 frame.columnconfigure(column, weight=weight, uniform=f"dashboard{index}")
             return frame
 
-        # row 0: stat cards
-        stats = row(0, [1] * 5)
+        toolbar = card(main)
+        toolbar.grid(row=0, column=0, sticky="ew", padx=5, pady=(0, 10))
+        left = tk.Frame(toolbar, bg=PANEL)
+        left.pack(side="left", padx=14, pady=8)
+        heading(left, "Capture Overview").pack(anchor="w")
+        tk.Label(left, textvariable=self.v_live, bg=PANEL, fg=MUTED, font=(FONT, 9)).pack(anchor="w")
+        actions = tk.Frame(toolbar, bg=PANEL)
+        actions.pack(side="right", padx=12)
+        self.cap_buttons_in(actions)
+        flat_button(actions, "Reports", lambda: self.select("Reports"), padx=10, pady=4).pack(side="left")
+
+        stats = row(1, [1] * 5)
         stats.rowconfigure(0, weight=0)
         self.v_dev, (self.v_on, self.v_off) = self.stat_card(stats, 0, BLUE, "Total Devices", [GREEN, RED])
         self.v_pps, (self.v_pps_sub,) = self.stat_card(stats, 1, BLUE, "Packets / Second", [GREEN])
@@ -788,7 +799,7 @@ class App(tk.Tk):
         self.v_total, (self.v_tdown, self.v_tup) = self.stat_card(stats, 4, BLUE, "Total Data (Session)",
                                                                   [BLUE, PURPLE])
 
-        overview = row(1, [3, 2])
+        overview = row(2, [3, 2])
         self.usage_panel(overview).grid(row=0, column=0, sticky="nsew", padx=5)
 
         p = card(overview)
@@ -813,7 +824,7 @@ class App(tk.Tk):
         self.map.bind("<Left>", lambda _event: self.step_radar(-1))
         self.map.bind("<Right>", lambda _event: self.step_radar(1))
 
-        details = row(2, [2, 1])
+        details = row(3, [2, 1])
         self.packet_panel(details, "Live Packet Capture", clear=False).grid(
             row=0, column=0, sticky="nsew", padx=5
         )
@@ -854,10 +865,13 @@ class App(tk.Tk):
         self.tree_dev.tag_configure("off", foreground=RED)
 
         self.v_alert_summary = tk.StringVar(value="No alerts this session")
-        tk.Label(alert_tab, textvariable=self.v_alert_summary, bg=PANEL, fg=MUTED,
-                 font=(FONT, 9)).pack(anchor="w", padx=6, pady=6)
-        self.tree_alert = table(alert_tab, [("Time", 68), ("Alert", 125), ("Details", 175)])
+        alert_toolbar = tk.Frame(alert_tab, bg=PANEL)
+        alert_toolbar.pack(fill="x", padx=4, pady=4)
+        tk.Label(alert_toolbar, textvariable=self.v_alert_summary, bg=PANEL, fg=MUTED,
+                 font=(FONT, 9)).pack(side="left")
+        self.tree_alert = table(alert_tab, [("Time", 68), ("Port", 48), ("Packets", 65), ("Details", 170)])
         self.tree_alert.tag_configure("alert", foreground=RED)
+        self.bind_alert_inspection(alert_toolbar, self.tree_alert, port_column=1)
 
         self.tree_top = table(ip_tab, [("#", 30), ("IP Address", 140), ("Data Usage", 90)])
         for tree in (self.tree_dev, self.tree_alert, self.tree_top):
@@ -1305,14 +1319,55 @@ class App(tk.Tk):
         f.rowconfigure(0, weight=1)
         p = card(f)
         p.grid(row=0, column=0, sticky="nsew", padx=5, pady=4)
-        heading(p, "⚠ Security Alerts").pack(anchor="w", padx=12, pady=(8, 0))
+        toolbar = tk.Frame(p, bg=PANEL)
+        toolbar.pack(fill="x", padx=12, pady=(8, 4))
+        heading(toolbar, "Security Alerts").pack(side="left")
         self.v_alert_note = tk.StringVar()
         tk.Label(p, textvariable=self.v_alert_note, bg=PANEL, fg=MUTED, font=(FONT, 9)).pack(anchor="w", padx=12,
                                                                                             pady=(0, 6))
         self.tree_alerts_page = table(p, [("Time", 90), ("Alert", 170), ("Port", 70), ("Packets", 80),
                                           ("Details", 380)])
         self.tree_alerts_page.tag_configure("alert", foreground=RED)
+        self.bind_alert_inspection(toolbar, self.tree_alerts_page, port_column=2)
         self.tree_alerts_page.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+
+    def bind_alert_inspection(self, toolbar, tree, port_column):
+        def inspect(_event=None):
+            selection = tree.selection()
+            if not selection:
+                return
+            port = tree.item(selection[0], "values")[port_column]
+            self.filter_var.set(f"dst.port:{port}")
+            self.refilter()
+            self.select("Packet Capture")
+            packet_table = self.capture_tree
+            rows = packet_table.get_children()
+            if rows:
+                packet_table.selection_set(rows[-1])
+                packet_table.see(rows[-1])
+                packet_table.focus_set()
+            else:
+                self.status_msg.set(f"No retained packets for destination port {port}")
+
+        button = flat_button(toolbar, "Inspect packets", inspect, padx=8, pady=2, state="disabled")
+        button.pack(side="right")
+        tree.bind("<<TreeviewSelect>>",
+                  lambda _event: button.configure(state="normal" if tree.selection() else "disabled"))
+        tree.bind("<Double-Button-1>", inspect)
+        tree.bind("<Return>", inspect)
+
+    def update_alert_table(self, tree, rows):
+        current = [tree.item(item, "values") for item in tree.get_children()]
+        next_values = [tuple(map(str, row)) for row in rows]
+        if current == next_values:
+            return
+        selection = tree.selection()
+        selected_row = tree.item(selection[0], "values") if selection else None
+        fill(tree, rows, ["alert"] * len(rows))
+        if selected_row in next_values:
+            item = tree.get_children()[next_values.index(selected_row)]
+            tree.selection_set(item)
+            tree.focus(item)
 
     def page_logs(self, f):
         f.columnconfigure(0, weight=1)
@@ -1802,7 +1857,7 @@ class App(tk.Tk):
             self.draw_network_view()
             fill(self.tree_top, [(i, ip, fmt_bytes(b)) for i, (ip, b) in enumerate(s["ip_bytes"].most_common(5), 1)])
             fill(self.tree_dev, [(r[0], r[1], r[2], r[3], r[4]) for r in dev_rows[:8]], dev_tags[:8])
-            fill(self.tree_alert, [(r[0], r[1], r[4]) for r in alert_rows[:8]], ["alert"] * len(alert_rows[:8]))
+            self.update_alert_table(self.tree_alert, [(r[0], r[2], r[3], r[4]) for r in alert_rows[:8]])
         elif self.current == "Devices":
             fill(self.tree_dev_page, [(r[0], r[1], r[2], r[5], r[4], r[3], r[6]) for r in dev_rows], dev_tags)
         elif self.current == "Protocol Analysis":
@@ -1813,7 +1868,7 @@ class App(tk.Tk):
         elif self.current == "Alerts":
             self.v_alert_note.set(f"Alert when one port receives {mon.threshold}+ packets   |   "
                                   f"{s['alert_total']} alert(s) this session (showing latest 100)")
-            fill(self.tree_alerts_page, alert_rows, ["alert"] * len(alert_rows))
+            self.update_alert_table(self.tree_alerts_page, alert_rows)
 
     def refresh_logs(self):
         fill(self.tree_logs, reversed(read_log_tail()))

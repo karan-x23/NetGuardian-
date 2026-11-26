@@ -137,6 +137,12 @@ flowchart LR
     D --> E[Timeline, alerts and device details]
 ```
 
+### Live investigation walkthrough
+
+On Windows, connect to a network you can monitor and verify that Npcap is available. In **Settings**, set a temporary alert threshold suitable for your own traffic. Start capture from **Capture Overview** and generate normal traffic on your computer by opening an HTTPS page. When a destination port crosses the threshold, select that alert and click **Inspect packets**. The inspector opens the latest retained packet matching the alert's destination port. Expand its TCP or UDP and IP layers to see the fields behind that match. Use **Reports** to save the session summary.
+
+The alert shortcut applies a `dst.port:<number>` filter to retained packets. It shows all retained matches for that destination port, including packets observed outside the alert window.
+
 ### Saved sessions
 
 Use **Export** and **Export inventory** in the desktop app to save your session. In Traffic Explorer, import the packet CSV first, then the inventory CSV. Replay and speed controls are available for imported recordings. Select **Return to live** to resume the live feed when the browser was opened from the desktop app. The filtered traffic summary can be downloaded as JSON or saved as a PDF via **Print report**.

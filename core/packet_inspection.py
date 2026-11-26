@@ -55,14 +55,18 @@ def display_filter(text, header_lookup, protocols):
         except ValueError:
             continue
     names = {name.lower() for name in protocols if re.search(rf"\b{re.escape(name.lower())}\b", text)}
-    ports = {int(port) for port in re.findall(r"\bport\s*:\s*([0-9]{1,5})\b", text)}
+    ports = {int(port) for port in re.findall(r"(?<![\w.])port\s*:\s*([0-9]{1,5})\b", text)}
+    destination_ports = {int(port) for port in re.findall(r"\bdst\.port\s*:\s*([0-9]{1,5})\b", text)}
 
     def matches(row):
         if addresses and addresses.isdisjoint(row[2:4]):
             return False
-        headers = header_lookup(row[0]) if ports or names else {}
+        headers = header_lookup(row[0]) if ports or destination_ports or names else {}
         if names and row[4].lower() not in names and not any(layer.lower() in names for layer in headers):
             return False
-        return not ports or not ports.isdisjoint(packet_ports(headers))
+        pair = packet_ports(headers)
+        if destination_ports and (not pair or pair[1] not in destination_ports):
+            return False
+        return not ports or not ports.isdisjoint(pair)
 
     return matches
