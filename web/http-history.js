@@ -10,15 +10,24 @@ const maxFileSize = 20 * 1024 * 1024;
 const previewLimit = 32000;
 let entries = [];
 let importGeneration = 0;
+let selectedEntry = null;
+const network = globalThis.chrome?.devtools?.network;
+const recordButton = byId("har-record");
+const liveLimit = 300;
+let recording = false;
+let renderTimer = null;
+
+function isRequest(entry) {
+  return typeof entry?.request?.url === "string" &&
+    typeof entry.request.method === "string" && Number.isInteger(entry.response?.status);
+}
 
 function parseHistory(text) {
   const data = JSON.parse(text.replace(/^\uFEFF/, ""));
   if (!Array.isArray(data?.log?.entries)) {
     throw new Error("Choose a HAR file exported from your browser’s Network panel.");
   }
-  return data.log.entries.filter((entry) => typeof entry?.request?.url === "string" &&
-    typeof entry.request.method === "string" && entry.response &&
-    Number.isInteger(entry.response.status));
+  return data.log.entries.filter(isRequest);
 }
 
 function preview(text, empty = "Unavailable in this recording.") {
@@ -38,6 +47,7 @@ function elapsed(value) {
 }
 
 function inspect(entry) {
+  selectedEntry = entry;
   const { request, response, timings } = entry;
   inspector.hidden = false;
   byId("har-summary").textContent = `${request.method} · ${response.status || "No response"} · ${elapsed(entry.time)} · ${request.url}`;
@@ -48,12 +58,21 @@ function inspect(entry) {
   byId("har-response-body").textContent = content?.encoding === "base64" && typeof content.text === "string"
     ? "Base64-encoded content\n" + preview(content.text)
     : preview(content?.text);
+  if (typeof entry.getContent === "function" && typeof content?.text !== "string") {
+    byId("har-response-body").textContent = "Reading recorded response…";
+    entry.getContent((body, encoding) => {
+      if (selectedEntry !== entry) return;
+      const text = typeof body === "string" && body.length ? preview(body) : "Response body unavailable in DevTools, or empty.";
+      byId("har-response-body").textContent = encoding === "base64" ? "Base64-encoded content\n" + text : text;
+    });
+  }
   const phases = ["blocked", "dns", "connect", "ssl", "send", "wait", "receive"];
   byId("har-timings").textContent = phases.map((phase) => `${phase}: ${elapsed(timings?.[phase])}`).join("\n");
   inspector.focus();
 }
 
 function hideInspector() {
+  selectedEntry = null;
   inspector.hidden = true;
   for (const id of ["summary", "request-headers", "request-body", "response-headers", "response-body", "timings"]) {
     byId(`har-${id}`).textContent = "";
@@ -83,16 +102,23 @@ function renderHistory() {
   }
   byId("har-rows").replaceChildren(fragment);
   byId("har-count").textContent = `Showing ${visible.length} of ${matches.length} matching requests`;
-  hideInspector();
+  if (!matches.includes(selectedEntry)) hideInspector();
 }
 
-function loadHistory(records) {
-  entries = records;
+function updateMethods() {
+  const selectedMethod = method.value;
   const methods = [...new Set(entries.map(({ request }) => request.method))].sort();
   const options = document.createDocumentFragment();
   options.append(new Option("All methods", ""));
   for (const name of methods) options.append(new Option(name, name));
   method.replaceChildren(options);
+  method.value = methods.includes(selectedMethod) ? selectedMethod : "";
+}
+
+function loadHistory(records) {
+  entries = records;
+  updateMethods();
+  method.value = "";
   search.value = "";
   status.value = "";
   byId("har-clear").disabled = !entries.length;
@@ -102,6 +128,7 @@ function loadHistory(records) {
 fileInput.addEventListener("change", async () => {
   const [file] = fileInput.files;
   if (!file) return;
+  stopRecording();
   const generation = ++importGeneration;
   fileInput.value = "";
   try {
@@ -118,8 +145,53 @@ fileInput.addEventListener("change", async () => {
 });
 byId("har-clear").addEventListener("click", () => {
   importGeneration++;
+  stopRecording();
   loadHistory([]);
-  byId("status").textContent = "History cleared. Import a HAR to inspect another recording.";
+  byId("status").textContent = "History cleared.";
 });
+function recordFinished(entry) {
+  if (!recording || !isRequest(entry)) return;
+  entries.unshift(entry);
+  if (entries.length > liveLimit) entries.pop();
+  if (renderTimer !== null) return;
+  renderTimer = setTimeout(() => {
+    renderTimer = null;
+    updateMethods();
+    byId("har-clear").disabled = false;
+    renderHistory();
+  }, 150);
+}
+
+function stopRecording() {
+  if (!recording) return;
+  recording = false;
+  network.onRequestFinished.removeListener(recordFinished);
+  recordButton.textContent = "Start recording";
+  clearTimeout(renderTimer);
+  renderTimer = null;
+  updateMethods();
+  byId("har-clear").disabled = !entries.length;
+  renderHistory();
+  byId("status").textContent = `Recording stopped · ${entries.length} requests retained`;
+}
+
+if (network?.onRequestFinished) {
+  byId("traffic-link").hidden = true;
+  recordButton.hidden = false;
+  byId("status").textContent = "Start recording, then reload or use the inspected tab.";
+  recordButton.addEventListener("click", () => {
+    if (recording) {
+      stopRecording();
+      return;
+    }
+    importGeneration++;
+    loadHistory([]);
+    recording = true;
+    network.onRequestFinished.addListener(recordFinished);
+    recordButton.textContent = "Stop recording";
+    byId("status").textContent = "Recording completed requests from the inspected tab · latest 300 retained";
+  });
+}
+
 for (const input of [search, method, status]) input.addEventListener("input", renderHistory);
 renderHistory();

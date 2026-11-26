@@ -12,7 +12,8 @@
     <header>
       <div><p class="brand">NETGUARDIAN</p><h1>HTTP History</h1></div>
       <div class="actions">
-        <a class="tool-link" href="index.html">Traffic Explorer</a>
+        <a class="tool-link" id="traffic-link" href="index.html">Traffic Explorer</a>
+        <button id="har-record" type="button" hidden>Start recording</button>
         <label class="upload">Import HAR <input id="har-file" type="file" accept=".har,application/json"></label>
         <button id="har-clear" type="button" disabled>Clear history</button>
       </div>

@@ -174,3 +174,11 @@ Each domain row represents one observed request. Domain records may include back
 ## HTTP History
 
 In your browser’s DevTools, open **Network** and export a HAR from your own browser session or test app. Open **HTTP History** in Traffic Explorer or open `web/http-history.html` directly. Import the HAR, filter by URL, method or status, and select a request to inspect its recorded headers, bodies and timing. Body previews depend on what the browser saved. The viewer reads the file locally and makes no requests to recorded URLs. HAR files can include sensitive headers or body content, so keep them private.
+
+### Automatic recording in Chrome or Edge
+
+1. Open `chrome://extensions` (Chrome) or `edge://extensions` (Edge). Enable **Developer mode**, choose **Load unpacked**, and select NetGuardian’s `web` folder.
+2. Open your own site or test app and press **F12**. Select the **NetGuardian** DevTools tab (look under **»** if it is hidden).
+3. Click **Start recording**, then reload or interact with the inspected tab. Finished requests appear automatically. Select one to view available headers, request and response bodies, and timings. Click **Stop recording** when finished.
+
+The DevTools panel keeps the last 300 completed requests in memory. It reads the inspected tab’s recorded requests and does not alter them. Requests without a body, responses whose content is unavailable to DevTools, and phases the browser could not time may have empty details. HAR import is still available.

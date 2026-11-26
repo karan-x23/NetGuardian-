@@ -1,0 +1,7 @@
+{
+  "manifest_version": 3,
+  "name": "NetGuardian HTTP History",
+  "version": "1.0.0",
+  "description": "Inspect requests already recorded by DevTools for the current tab.",
+  "devtools_page": "devtools.html"
+}
